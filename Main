@@ -1,18 +1,31 @@
 function onEdit(e) {
 
-  let ss = SpreadsheetApp.getActiveSheet(); // Accessing active spreadsheet
+  let ss = SpreadsheetApp.getActiveSpreadsheet(); // Accessing active spreadsheet
 
   const edited = e.range; // Gets the range of the edited cell, declares as const to be unchangeable.
   const column = edited.getColumn();
   const row = edited.getRow(); 
 
+  let timeCellRef = "C" + row; //  Stores the corresponding cell for the requested time
+  let timeNotesCell = "D" + row; // Stores timing notes cell to check if timing notes are empty
 
-  // Time checks (Not currently functional)
-  const timeCellRef = "C" + row; //  Stores the corresponding cell for the requested time
-  const requestedLength = ss.getRange(timeCellRef).getValue(); // Accesses value in time slot cell
+  // Checking if tutor has taken 1:1 after student has filled in their request and time with no timings notes
+  if (column == 5 && !ss.getRange(timeCellRef).isBlank() && ss.getRange(timeNotesCell).isBlank()) { // second condition is accessing sheet, getting the cell and checking it is NOT empty
 
-  // Checking if tutor has taken 1:1 after student has filled in their request and time 
-  if (column == 5 && !ss.getRange(timeCellRef).isBlank()) { // second condition is accessing sheet, getting the cell and cheking it is NOT empty
+    
+    // Time formatting
+    let startTime = ss.getRange(timeCellRef).getValue(); // Accesses value in time slot cell
+    let endTime = ""; // Intiailising end time
+
+    let startHour = startTime.split(":")[0]; // Splits string at : to check hour
+    let startMinutes = startTime.split(":")[1] // Stores minutes and AM/PM of start time
+    if (startHour != "12"){ // Calculating end time as 1 hour later than start time by adding 1 to first string element. 
+      endTime = String(parseInt(startHour) + 1) + ":" + startMinutes; 
+    } else if (startTime.substring(0,2) == "12"){ // If start time is 12, sets end time manually since 12+1 != 1
+      endTime = "1:" + startMinutes;
+    }
+    
+    let day = ss.getActiveSheet().getName().bold(); // Gets day of session from sheet name
 
     editedCellRef = "E" + row; // stores edited cell
     if (!ss.getRange(editedCellRef).isBlank()) { // If the edited cell is not left blank (to avoid triggering when a tutor is removed)
@@ -23,7 +36,7 @@ function onEdit(e) {
       let cellRef = "F" + row; // F is column for tutor notes, row is request row
       if (ss.getRange(cellRef).isBlank()) { // .isBlank() returns true if cell is empty, then enters if condition 
 
-        // Tutor name search
+        // Tutor name -> Tutor Code
         const tutorName = edited.getValue(); 
         let names = tutorName.trim().split(" "); // Breaks tutor name from a string into two strings (first name and last, breaks at space), list of strings, and removes white spaces before and after name
         let firstName = names[0]; 
@@ -38,7 +51,7 @@ function onEdit(e) {
         } else if (lastName.length < 3){
           tutorCode = firstName.substring(0,3) + lastName; 
         } else if (firstName.length < 3 && lastName.length < 3){
-          tutorCode = firstName + lastName
+          tutorCode = firstName + lastName;
         }
 
         // Searching for tutor in Tutor Data Sheet
@@ -48,7 +61,7 @@ function onEdit(e) {
 
         for (let i = 1; i <= numTutors; i = i + 1){
           let SearchIdx = "A" + i; 
-          let searchString = ssTutor.getRange(SearchIdx).getValue();
+          let searchString = ssTutor.getRange(SearchIdx).getValue(); // The tentative checking value
           
           if (searchString == tutorCode){ // If tutorCode matches row, find tutor email and set it as the address
             let emailCell = "H" + i;
@@ -56,36 +69,69 @@ function onEdit(e) {
           }
         }
 
-        /*
-        // Searching student in Student Data Sheet (Not currently functional)
+        // Searching student in Student Data Sheet
+        
+        let studentCell = "A" + row; 
+        let studentName = ss.getRange(studentCell).getValue(); 
+        let namesStudent = studentName.trim().split(" "); // Splits students name into first and last
+        let studentFirst = namesStudent[0];
+        let studentLast = namesStudent[namesStudent.length-1];
+
         let ssStudent = SpreadsheetApp.openById('1NJJCoiImevYn-mWaTd3BD5Z_96XKVIij8fCf_mN1BsA'); // Accesses Student spreadsheet
         let numStudents = ssStudent.getLastRow();
         let studentEmail = ""; 
-
+ 
+        // Searching for last name in Student Ops Data
         for (let j = 1; j <= numStudents; j = j + 1){
-          let SearchIdx = "A" + j; 
-          let searchString = ssStudent.getRange(SearchIdx).getValue();
+          let firstSearchIdx = "B" + j; // Search index for first name
+          let lastSearchIdx = "D" + j; // Search index for last name
+
+          let searchStringFirst = ssStudent.getRange(firstSearchIdx).getValue() // Tentative search string for first name
+          let searchStringLast = ssStudent.getRange(lastSearchIdx).getValue(); // Tentative search string for last name
           
-          if (searchString == tutorCode){ // If tutorCode matches row, find tutor email and set it as the address
-            let emailCell = "H" + i;
-            studentEmail = ssTutor.getRange(emailCell).getValue();
+          if (searchStringFirst == studentFirst && searchStringLast == studentLast){ // If first name and last name matches row, find student email
+            let emailCell = "F" + j;
+            studentEmail = ssStudent.getRange(emailCell).getValue();
+          } 
+        }
+
+        // If name is not found in the first names, studentEmail is left unaltered, so check the preferred names
+        if (studentEmail == ""){ // If studentEmail is still "", no name has been found in the first for loop to change it
+          for (let j = 1; j <= numStudents; j = j + 1){
+            let lastSearchIdx = "D" + j; // Search index for last name
+            let prefSearchIdx = "X" + j; // Searches in preferred column instead
+
+            let searchStringPref = ssStudent.getRange(prefSearchIdx).getValue().substring(0,3); // Searches based on first 3 letters of preferred name 
+            let searchStringLast = ssStudent.getRange(lastSearchIdx).getValue();
+            
+            if (searchStringPref == studentFirst.substring(0,3) && searchStringLast == studentLast){ // If last name matches row and first name matches preferred name, find student email
+              let emailCell = "F" + j;
+              studentEmail = ssStudent.getRange(emailCell).getValue();
+            } 
           }
         }
-        */
+
+        // Finding subject name 
+        let subjectCell = "B" + row;
+        let subjectName = ss.getRange(subjectCell).getValue().bold(); // Extracts subject name, converts to bold text using .bold() (stores as html bolded)
 
         let address = ss.getRange("A1").getValue(); // Accesses A1 cell, then the value within the cell
-        let subject = ss.getRange("A2").getValue();
-        let body = tutorEmail; // Testing to see if extracts email correctly 
-        // let body = ss.getRange("A3").getValue(); 
-        MailApp.sendEmail(address, subject, body);
+        let subject = "Confirmation of One-on-One Session"; 
+        let msgHtml = 
+          "<p> Hi " + firstName + " and " + studentFirst + ", </p>" +
+
+          "<p>This email is to inform you that your One-on-One request has been fulfilled. Please see below for details about your upcoming session: </p>" + 
+
+          "<p>" + subjectName + ", " + day + " - " + "<b>" + startTime + " to "+ endTime + "</b>" + "</p>" + 
+
+         "<p>If you can no longer make this session, please reply to this email as soon as possible!</p>" +
+
+         "<p>Kind Regards, </p>"; // Formatted in HTML to allow for bold text, <p> opens new paragraph, </p> closes paragraph
+
+        let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+        MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text
       }
     }
   }
 }
-
-// Most recent working sections: Searches in data sheet for Tutor Code and finds tutor email.  
-
-// Current issues:  
-//- does not give automatic filled email slots
-//- doesn't take in time slots
 

@@ -29,3 +29,11 @@ A Google script for excel which takes in data of updates for 1:1 sign ups and ex
     </li>
   </ul>
 </p>
+
+<p> 
+<b> For back-end issues:</b><br>
+<br>
+DISCLAIMER: You may want to consult with an Applied Computing tutor or anyone familiar with coding (in particular JavaScript or Apps Script) to troubleshoot these issues. It can be done without this knowledge, however it may be easier.</br>
+The data for where information (i.e. student and tutor names ) from the 1:1 sheet are taken from is based on a column. For example, student's names are extracted from column A in the 1:1 sheet, so if this changes (or any other columns such as where times, subjects, or notes - really any column) the code will fail unless the column is also updated. The code also searches for edits based on the column <i> index </i> since this is how google sheets stores column edits (it doesn't store column letters). This means that code that is supposed to execute when a tutor edits the tutor name column is actually acting from the corresponding  <i> column index </i>, 6. That is, A=1, B=2, etc. If the tutor name column changes, the code also needs to reflect that change. 
+
+</p>

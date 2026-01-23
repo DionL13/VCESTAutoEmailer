@@ -40,7 +40,7 @@ The data for where information (i.e. student and tutor names, etc.) from the 1:1
 </br>
 
 <br>
-The code also calls other sheets <i> by ID </i>. This is the random string in the URL, like the ID for the sheet 'https://docs.google.com/spreadsheets/d/1X06xgFj7Vdz77mX2BhHZShDbsi9qym_JExX-0_QyM/edit?gid=0#gid=0' (this is a fake sheet url) is'1X06xgFj7Vdz77mX2BhHZShDbsi9qym_JExX-0_QyM'. When the code calls those sheets, for the next program, the sheet ID will likely change, so the new sheet ID for the Ops Student/Tutor data needs to be changed. 
+The code also calls other sheets <i> by ID </i>. This is the random string in the URL, like the ID for the sheet 'https://docs.google.com/spreadsheets/d/1X06xgFj7Vdz77mX2BhHZShDbsi9qym_JExX-0_QyM/edit?gid=0#gid=0' (this is a fake sheet url) is '1X06xgFj7Vdz77mX2BhHZShDbsi9qym_JExX-0_QyM'. When the code calls those sheets, for the next program, the sheet ID will likely change, so the new sheet ID for the Ops Student/Tutor data spreadsheets needs to be changed. 
 </br>
 
 </p>

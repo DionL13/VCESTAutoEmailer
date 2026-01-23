@@ -25,8 +25,6 @@ A Google script for excel which takes in data of updates for 1:1 sign ups and ex
         <li>
         No time selected error: <br>
         The student has not provided a time for the request. In this case, the student needs to be emailed directly to give a time. If the time has been provided after the student has been emailed, change the             timing fix to the designated time and the confirmation email will change to "Y" and the email will send if the other two conditions are met.  </br></li>
-        
-          
       </ul>
     </li>
   </ul>

@@ -123,7 +123,7 @@ function sendConfirmationEmail(studentEmail,tutorEmail,sessionTime,sessionDetail
 
   "<p>" + subjectName + ", " + day + " - " + "<b>" + sessionTime + "</b>" + "</p>" + 
 
-  "If you would like to make any changes to this session, do <b> not </b> change the 1:1 spreadsheet. Please email Ops directly and we will sort out the changes. </p>" +
+  "If you would like to make any changes to this session, do <b> not </b> change the 1:1 spreadsheet. Please email Ops directly and we will make the changes. </p>" +
 
   "<p>If you can no longer make this session, please reply to this email as soon as possible!</p>" +
 
@@ -134,4 +134,24 @@ function sendConfirmationEmail(studentEmail,tutorEmail,sessionTime,sessionDetail
   MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml, 'bcc': studentEmail + "," + tutorEmail}); // htmlBody formats body as an html text
 
   ss.getRange(confirmedEmailCell).setValue("Y");
+}
+
+function getOtherSpreadsheets(){
+  let ssTutor = SpreadsheetApp.openById('1zgYWlXB9PRvOGL4vmELJx82rY8buTE_n1gaiAvTCr5Y'); // Accesses Tutor Spreadsheet
+  let ssStudent = SpreadsheetApp.openById('1NJJCoiImevYn-mWaTd3BD5Z_96XKVIij8fCf_mN1BsA'); // Accesses Student spreadsheet
+
+  return [ssTutor, ssStudent];
+}
+
+function blinkCell(ss, cellToBlink){
+  ss.getRange(cellToBlink).setBackground('red');
+  SpreadsheetApp.flush();
+  Utilities.sleep(50); // Sleeps for 0.5 seconds
+  ss.getRange(cellToBlink).setBackground('white');
+  SpreadsheetApp.flush();
+  Utilities.sleep(50); // Sleeps for 0.5 seconds
+  ss.getRange(cellToBlink).setBackground('red');
+  SpreadsheetApp.flush();
+  Utilities.sleep(50); // Sleeps for 0.5 seconds
+  ss.getRange(cellToBlink).setBackground('white');
 }

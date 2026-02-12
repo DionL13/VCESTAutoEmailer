@@ -9,7 +9,7 @@ function colLettertoColNumber(columnLetter){
 
 function notifyOpsOrange() {
   // Notifies Ops immediately when a form is submitted incorrectly or with a subject not in the dropdown list
-  let address = "dionlepair13@gmail.com"; // Change to Ops email
+  let address = "REDACTED"; // Change to Ops email
   let subject = "Tutor Absences Unlisted Subject"; 
   let msgHtml = 
   "Hi Ops Members," + 
@@ -150,7 +150,7 @@ function getClassesForEachTT(uniqueTutorCodes, teamTutorCodes, absentClasses){
 }
 
 function notifyOpsCodeNotFound(tutorCode, subjectName, block, absentClassesString){
-  let address = "dionlepair13@gmail.com";
+  let address = "REDACTED";
   let subject = "Tutor Absences: Tutor Not Found in Sign In Sheet";
   let msgHtml = 
   "Hi Ops, " + 

@@ -1,12 +1,12 @@
 function updateTutorSignIn(e) {
   // Function takes tutor code and subject and searches the tutor sign in sheet for matches in both columns. Once this occurs, inputs absences in the associated columns. 
 
-  let signInSS = SpreadsheetApp.openById('1y9Q0--OYE8EZUYdBrqkh089r06BL0oUq9-DPBhQfiwA'); // Accessing sign in spreadsheet
+  let signInSS = SpreadsheetApp.openById('REDACTED'); // Accessing sign in spreadsheet 
   
   let tutorAbsencesSS = e.source; // Accessing form responses spreadsheet (source of edit)
   let tutorAbsencesData = tutorAbsencesSS.getSheets()[0].getDataRange().getValues(); // Accessing data once, excluding questions row
 
-  let ssTutor = SpreadsheetApp.openById('1G33BQ8pO_YY0EPZTFAAwQZrpaILODKS6vLyTfgtnWg4'); // Opening Ops tutor data spreadsheet
+  let ssTutor = SpreadsheetApp.openById('REDACTED'); // Opening Ops tutor data spreadsheet
   let ssTutorData = ssTutor.getSheets()[0].getDataRange().getValues();
 
 

@@ -47,10 +47,6 @@ function updateTutorSignIn(e) {
   let className = ""; // class name is the full subject name including the class number (e.g Physics 3 & 4 1)
   let teamTutorCodes = "";
 
-  // Declaring maps 
-  let tutorCodetoIdxMap = new Map(); // Stores keys as tutor codes and values as row indexes 
-  let tutorCodetoClassNameMap = new Map();
-
   // Getting subject name for when Other is not selected (i.e. Other column is blank)
   if (tutorAbsencesData[row][subjectNameCol] != "" && tutorAbsencesData[row][subjectNameCol] != "Other"){
     subjectName = tutorAbsencesData[row][subjectNameCol];

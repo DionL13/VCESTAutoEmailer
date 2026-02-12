@@ -1,6 +1,6 @@
 function notifyOpsUnconfirmed() {
 
-  let ss = SpreadsheetApp.openById("1X0fD6xgFj7Vdz77mX2BhHZShDbsi9qym_JExX-0_QyM"); // Needs to be changed to 1:1 sign up sheet ID for on program
+  let ss = SpreadsheetApp.openById("REDACTED"); // Needs to be changed to 1:1 sign up sheet ID for on program
  
   let numNotConfirmed = 0; // Initialising number of unconfirmed emails total across all sheets
   let numSheets = ss.getNumSheets();

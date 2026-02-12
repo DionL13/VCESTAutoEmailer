@@ -1,0 +1,166 @@
+function colLettertoColNumber(columnLetter){
+  // Function converts column letter to a column number, only for columns A-Z
+
+  let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice();
+  let colNumber = alphabet.indexOf(columnLetter); // matches indexing of array 
+
+  return colNumber;
+}
+
+function notifyOpsOrange() {
+  // Notifies Ops immediately when a form is submitted incorrectly or with a subject not in the dropdown list
+  let address = "dionlepair13@gmail.com"; // Change to Ops email
+  let subject = "Tutor Absences Unlisted Subject"; 
+  let msgHtml = 
+  "Hi Ops Members," + 
+  "<p> There is a new problematic tutor absence submission that needs to be resolved in the Tutor Absences (Responses) sheet.</p>" + 
+
+  "<p>If the row is <b> orange </b>, this means that a non-listed subject has been typed into the form. If this is a standard subject (like a subject name and units 1 and 2 for example, NOT a subject like All Units French), <b>resolve this by</b> editing the google form, adding the response as an option. Then please resubmit the form on behalf of the tutor, maintaining the same information. </p>" +
+  
+  "<p> This is an automated email. Please do not respond. If you have further questions, please speak to an Ops Coordinator. </p>" +
+  "<p> Thanks, </p>";  
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // removes html formatting to be parsed by javascript email function
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text
+}
+
+function convertClassLetterToColumn(absentClasses, classLettersCol, classIdx, toNumber = true){
+  let absClassCol = ""; // Initialising corresponding column to change to ABS in tutor sign-in sheet
+  // Matching class letter to corresponding column in tutor sign-in sheet
+  switch (absentClasses[classIdx]){
+    case "A":
+      absClassCol = classLettersCol[0];
+      break;
+    case "B":
+      absClassCol = classLettersCol[1];
+      break;
+    case "C":
+      absClassCol = classLettersCol[2];
+      break;
+    case "D":
+      absClassCol = classLettersCol[3];
+      break;
+    case "E":
+      absClassCol = classLettersCol[4];
+      break;
+    case "F":
+      absClassCol = classLettersCol[5];
+      break;
+  }
+
+  // By default will return the column number, but if toNumber is set to false, will return the column letter
+  if (toNumber == true){
+    return colLettertoColNumber(absClassCol); // Returns column number
+  }
+  else if (toNumber == false){
+    return(absClassCol);
+  }
+}
+
+
+function notifyTeamTutorAbsence(tutorCode, availableClasses, subjectName, block, ssTutorData){
+  // Function emails a tutor directly if they put absences across multiple blocks
+  [tutorEmail, prefName] = findTutorEmail(tutorCode, ssTutorData);
+
+  let soloClassesHtml = "<ul>"; // Initialising html text for days where tutor will be solo
+
+  for (let i = 0; i < availableClasses.length; i += 1){ // Creating html list for all classes where tutor will be solo
+    soloClassesHtml += "<li>" + block + availableClasses[i] + "</li>";
+  }
+  soloClassesHtml += "</ul>";
+
+  address = tutorEmail;
+  subject = "Team Tutor Absence";
+  msgHtml = 
+  "Hi " + prefName +
+
+  "<p> This email is to let you know that your team tutor(s) will be <b>absent</b> for your <b>" + subjectName + "</b> class in the following block(s) in case you weren't already aware: </p>" +
+
+  soloClassesHtml +
+
+  "<p> Please let us know if you are comfortable tutoring this class solo or if you would prefer a team tutor to accompany your class and we will try our best to find a suitable cover. </p>" +
+
+  "<br>Thanks, </br>";
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+}
+
+
+function findTutorEmail(tutorCode, ssTutorData) {
+  // Finds tutor email and preferred name by searching tutor code in the Ops data
+
+  // NOTE: Needs to be altered in different years to have different tutor spreadsheet IDs
+  let tutorCodeCol = colLettertoColNumber("A");
+  let tutorEmailCol = colLettertoColNumber("H");
+  let tutorPrefNameCol = colLettertoColNumber("X");
+  let tutorFirstNameCol = colLettertoColNumber("E");
+  let prefName = "";
+
+  // Searching for tutor in Tutor Data Sheet
+  let numTutors = ssTutorData.length; // ssTutorData is a nested array where the number of inner arrays is the number of rows, i.e. length is number of rows
+
+  for (let i = 0; i < numTutors; i += 1){
+    let searchString = ssTutorData[i][tutorCodeCol]; // The tentative checking value
+    
+    if (searchString == tutorCode){ // If tutorCode matches row, find tutor email and set it as the address
+      tutorEmail = ssTutorData[i][tutorEmailCol];
+
+      // Finding tutor preferred name 
+      prefName = ssTutorData[i][tutorPrefNameCol];
+
+      if (prefName == ""){ // If no preferred name is found
+        prefName = ssTutorData[i][tutorFirstNameCol];
+      }
+    }
+  }  
+
+  return [tutorEmail, prefName];
+}
+
+function uniqueTutors(teamTutorCodes){
+  // Function returns a set of the unique tutor codes 
+
+  let uniqueTutorCodesSet = new Set();
+  for (let i = 0; i < teamTutorCodes.length; i += 1){ // Iterating over each class letter list in teamTutorCodes
+    if (teamTutorCodes[i].length > 0){ // Can only iterate over elements of an array if it's non-empty
+      for (let j = 0; j < teamTutorCodes[i].length; j += 1){ // Iterating over elements within each class
+        uniqueTutorCodesSet.add(teamTutorCodes[i][j]);
+      }
+    }
+  }
+  uniqueTutorCodes = Array.from(uniqueTutorCodesSet); // Storing set as an array to be able to be indexed
+
+  return uniqueTutorCodes;
+}
+
+function getClassesForEachTT(uniqueTutorCodes, teamTutorCodes, absentClasses){
+  // returns an nested array where each inner array corresponds to the classes for which each TT needs to be notified of an absence
+
+  classesForEachTT = Array.from({length: uniqueTutorCodes.length}, () => []); // Creates a nested array with each inner array containing the classes they need to be notified of, i.e. if uniqueTutorCodesArray = [tutorCode1, tutorCode2], classesForEachTT = [[],[]]
+  for (let idx = 0; idx < uniqueTutorCodes.length; idx += 1){ // For each name in uniqueTutorCodes
+    for (let j = 0; j < teamTutorCodes.length; j += 1){ // Checking each absent class in teamTutorCodes array
+      if (teamTutorCodes[j].includes(uniqueTutorCodes[idx]) && teamTutorCodes[j].length == 1){
+        classesForEachTT[idx].push(absentClasses[j]); // If tutor code is in the team tutor codes for a given class, add that class into classesForEachTT
+      }
+    }
+  }
+
+  return classesForEachTT;
+}
+
+function notifyOpsCodeNotFound(tutorCode, subjectName, block, absentClassesString){
+  let address = "dionlepair13@gmail.com";
+  let subject = "Tutor Absences: Tutor Not Found in Sign In Sheet";
+  let msgHtml = 
+  "Hi Ops, " + 
+
+  "<p> This email is to notify you that an absence has been recorded by a tutor with the code <b>" + tutorCode + "</b> for <b>" + subjectName + "</b> in <b>" + block + absentClassesString + "</b> and this tutor was not found in the sign in sheet for the reported day of absence. Please follow up with this tutor directly and confirm their absence, then manually input the absence into the correct sign in sheet.</p>" +
+
+  "<p> This is an automated email. Do not respond. If you have any further questions, please speak to an Ops coordinator. </p>" +
+  "<br> Thanks, </br>"; 
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+}
+

@@ -10,6 +10,8 @@ Google Apps Script code which triggers on a Google form submission of tutor abse
 
 <p><b> For practical purposes: </b></p>
 
+<p> This code was written with the intention that systems can be optimized but old methods can still be retained. For that reason, completely manual inputs can still be performed so long as the tutor submits their tutor absence via the form. </p>.
+
 <p> If a tutor selects "Other" in the subject that they tutor, this means that their subject is not in the dropdown list. The likely reasons for this are that either the subject is niche and wasn't added to the dropdown list, or their subject covers multiple units (i.e. all units of a single subject). In this case, Ops will be sent an email of the absence and the tutor's absence won't be recorded until Ops does it manually. The checks for team tutors and finding class covers if necessary will ensue after the manual changes to ABS for the tutor.</p>
 
 <p> If the tutor code is not found, Ops will receive an email for which subject and classes the tutor will be absent as well as their code. In this case, it is Ops' job to find the tutor as the tutor code may not be in the sign-in sheet due to not being added yet. This needs to be resolved manually by an Ops member.</p>

@@ -1,0 +1,219 @@
+function coveredClassesOnEdit(e){
+  let edited = e.range;
+  let sheet = edited.getSheet();
+  let editedRangeName = edited.getA1Notation();
+
+  let sheetName = sheet.getSheetName(); // split() accounts for duplicate class names
+  if (sheetName !== "Daily Status"){
+    if (editedRangeName === 'I1'){ // Only contacts class covers if the checkbox has been edited
+      let contactCoversCheckboxValue = sheet.getRange(editedRangeName).getValue();
+      if (contactCoversCheckboxValue == true){ // Cell value is a string "true" for a checkbox
+
+        // Getting classes that have no tutors from the Class Covers sheet
+        let noTutorsClasses = sheet.getRange("F1").getValue().split(": ")[1].split(",");// Split(": ")[1] converts to ["Block 1A,Block 1C"], split(",") converts that to ["Block 1A", Block 1C"]
+
+        contactUrgentCovers(sheet, sheetName, noTutorsClasses);
+      }
+    }
+  } 
+}
+
+function bccAllUrgentCovers(availableUrgentCoversEmailsString, formLink, sheetName, noTutorsClasses){
+
+  // Emailing all available urgent covers
+  let className = sheetName.split(" (")[0]; // Removing duplicate index
+
+  // Building HTML formatted list for the classes that need to be covered
+  let blocksHtml = "<ul>";
+  for (let letter of noTutorsClasses){
+    blocksHtml += "<li>" + letter + "</li>"; // Adding list item
+  }
+  blocksHtml += "</ul>"; // Closing unordered list item
+
+  let address = ""; // All tutors bcc'd, no direct email
+  let subject = className + " Urgent Class Cover Needed";
+  let msgHtml = 
+  "Hi Tutors, " + 
+
+  "<p> Ops is currently searching for an <b> urgent class cover</b> as a <b>solo tutor</b> for <b>" + className + "</b> in the following blocks: </p>" +
+
+  blocksHtml + 
+
+  "<p> We found that you were available to tutor this subject in <b>at least one</b> of these blocks from the Urgent Covers form, and were wondering if you were able to take any/all of these classes? Please fill out the form below (if you cannot cover any of the classes, select the 'None' option) to let us know if you can help out.</p>" +
+  
+  formLink +
+
+  "<p> Thanks,";
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // removes html formatting to be parsed by javascript email function
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml, 'bcc': availableUrgentCoversEmailsString}); // htmlBody formats body as an html text
+}
+
+
+function contactUrgentCovers(sheet, sheetName, noTutorsClasses) {
+  // Searches the urgent covers sheet for tutors who can tutor the subject and adds their emails to a list if they are available on the day/block of the class  
+
+  let sheetData = sheet.getDataRange().getValues();
+  let fColClassCovers = 5;
+
+  let urgentCoversSheet = ssUrgentCoversResponse.getSheetByName('Form Responses');
+  let urgentCoversSheetData = urgentCoversSheet.getDataRange().getValues();
+  let colStarttoSearchDates = 45; // Column where dates are searched from in the for loop
+  let tutorCodeColUrgentCovers = 44;
+
+  // Fixing date search to be standardised to display values
+  let urgentCoversSheetDates = urgentCoversSheet.getRange('A1:BC1').getDisplayValues();
+  urgentCoversSheetData[0] = urgentCoversSheetDates[0]; // [0] since getDisplayValues() gets a 2D array
+
+  let classNameWithoutNumber = sheetName.split(" (")[0].slice(0, -2); // Removes duplicate index and specific class index
+
+  // Searching Urgent Covers (Responses) copy sheet for tutors who are available to cover the class
+
+  // Finding the column for the corresponding class
+  let noUnitsClass = classNameWithoutNumber.slice(0,-6); // -6 to remove units, i.e. " 3 & 4" has 6 characters
+  let classCol = ""; // Initialising class column to be updated once the class is found in a column search among the headings
+  for (let i = 1; i < urgentCoversSheetData[0].length; i++){ // [0] gets the first row of the sheet, so its length is the number of columns. Excluding first column as are emails, so i=1
+    let searchClass = urgentCoversSheetData[0][i];
+    if (searchClass === noUnitsClass){
+      classCol = i;
+      break; // Stopping for loop once the class has been found
+    }
+  } 
+
+  if (classCol === ""){ 
+    notifyOpsClassColNotFound(classNameWithoutNumber);
+    return; // Exits function call if a matching class name isn't found
+  }
+  else if (classCol !== ""){ // Searching for tutors who can cover the class
+
+    let classUnits = classNameWithoutNumber.slice(-5); // slice(-5) takes the last 5 elements of the class name, i.e. "3 & 4"
+    
+    // Filtering the Data array to just the rows which have a match for the class and the correct units
+    let urgentCoversRowsClassMatchArray = urgentCoversSheetData.filter(row => row[classCol].includes(classUnits)); // Each element is a row in the nested array, with the class being in the classCol-th index. If this index includes the class units (i.e. 3 & 4 is in the cell), then this element is included in the shallow copy
+
+    // Failsafe: If no urgent covers are found for the subject in the Urgent Covers form, email Ops to tell them to find one manually
+    if (urgentCoversRowsClassMatchArray.length == 0){ // If no tutors are found, the filter gives an empty array
+      notifyOpsNoAvailableUrgentCoversFound(sheetName);
+      return; // Exits function call if no tutors are found who are listed as able to tutor the class
+    }
+
+    // Finding the corresponding days to search based on which classes need to be covered
+    let timetableMapArray = JSON.parse(statusProperties.getProperty("timetableMapKey")); // Returns stringified nested array of key-value pairs, then parses to be a usable nested array
+    let timetableMap = new Map(timetableMapArray); // Stores array
+    let noTutorsClassNumberWLetter = noTutorsClasses.map(blockWClass => blockWClass.split(" ")[1]); // map() converts to ["1A", "1C"]
+    let daysCols = [];
+    for (let numberWLetter of noTutorsClassNumberWLetter){
+      let dayWDate = timetableMap.get(numberWLetter);
+      for (let column = colStarttoSearchDates; column < urgentCoversSheetData[0].length; column++){
+        let searchDay = urgentCoversSheetData[0][column];
+        if (searchDay == dayWDate){ // If this is the day that needs to be searched
+          daysCols.push(column);
+          break; // Terminates search once this day column has been found
+        }
+      }
+    }
+
+    // Finding which classes the tutors are able to cover based on availability
+    let availableUrgentCoversEmailsSet = new Set(); // Storing tutor emails for bcc
+    let availableUrgentCoversCodesSet = new Set(); // Storing tutor codes for class sheet storage
+    let classesWithNoAvailableTutors = []; // Storing which classes don't have any tutors available
+
+    for (let i = 0; i < daysCols.length; i++){
+
+      let availableUrgentCoversEmailsCodes = urgentCoversRowsClassMatchArray.filter(row => row[daysCols[i]].includes(noTutorsClasses[i].slice(0,7))).map(row => [row[0], row[tutorCodeColUrgentCovers]]);// Array which stor es all tutors to BCC which can cover *at least* one of the classes needing a cover. Note that daysCol is always ordered earliest to latest day, as is noTutorsClasses since appends from A-F in order. Thus these days and classes will always match. slice(0,7) gets "Block 5" from "Block 5B" in noTutorsClasses, as only the block is listed in the cell for the day
+      
+      // Adding to sets if any tutors are found
+      if (availableUrgentCoversEmailsCodes.length !== 0){
+        // Adding tutor emails to email set
+        let availableUrgentCoversEmailsArray = availableUrgentCoversEmailsCodes.map(pair => pair[0]); // A pair is an email-tutor code double
+        // Adding available tutors to the set of tutor emails to bcc
+        for (let email of availableUrgentCoversEmailsArray){
+          availableUrgentCoversEmailsSet.add(email);
+        }
+        
+        // Adding tutor codes to codes set
+        let availableUrgentCoversCodesArray = availableUrgentCoversEmailsCodes.map(pair => pair[1]);
+        for (let code of availableUrgentCoversCodesArray){
+          availableUrgentCoversCodesSet.add(code);
+        }
+      }
+      else if (availableUrgentCoversEmailsCodes.length == 0){ // Storing the class in a list if no tutors in urgent covers are able to cover the class
+        classesWithNoAvailableTutors.push(noTutorsClassNumberWLetter[i]); // Adds e.g. "2B" to the array
+      }
+    }
+
+    // Sending an email if there are tutors available for that class on that day
+    let contactedTutorsRow = "";
+    // Getting form link from sheet by searching for "Contacted Tutors" row
+    for (let i = 2; i < sheetData.length; i++){ // Starting from 2 since this is the 0-indexed row of "Contacted Tutors"
+      if (sheetData[i][fColClassCovers] == "Contacted Tutors"){
+        contactedTutorsRow = i;
+      }
+    }
+
+    if(availableUrgentCoversEmailsSet.size > 0){
+      // Converting set to a string of all emails to include in the bcc email
+      let availableUrgentCoversEmailsString = Array.from(availableUrgentCoversEmailsSet).join(",");
+
+      let cellFormula = sheet.getRange("F" + contactedTutorsRow).getFormula(); // contactedTutorsRow used as a row index from 1 is the same as contacted tutors location when indexed from 0
+      let formLink = cellFormula.split('"')[1]; // Splits at " character, then get the link 
+
+      // Email tutors the link sent to the Ops Data tutors, with all tutors bcc'd
+      bccAllUrgentCovers(availableUrgentCoversEmailsString, formLink, sheetName, noTutorsClasses);
+
+      // Adding "Contacted Urgent Covers" nect to "Contacted Covers"
+      let stringRow = contactedTutorsRow + 1;
+      sheet.getRange("H" + stringRow).setValue("Contacted Urgent Covers").setBackground('#0073e6').setFontColor('white');
+      sheet.getRange("H" + stringRow + ":I" + stringRow).setBackground('#0073e6').setFontColor('white');
+      
+      // Adding which urgent covers have been contacted by their codes under "Contacted Urgent Covers"
+      let availableUrgentCoversCodesArray = Array.from(availableUrgentCoversCodesSet).map(element => [element]); // map() allows for setValues() to have correct inputs for row-by-row entries
+      let beginRow = stringRow + 1;
+      let endRow = beginRow + (availableUrgentCoversCodesArray.length - 1); // -1 since we want to have the first element in the row below Contacted Covers. That is if the length is 2, we want the second to be 1 below Contacted Covers
+      sheet.getRange("H" + beginRow + ":H" + endRow).setValues(availableUrgentCoversCodesArray);
+    }
+    else if (availableUrgentCoversEmailsSet.size == 0){ // If no tutors were found, email Ops
+      notifyOpsNoAvailableUrgentCoversFound(sheetName)
+    }
+
+    // Altering Class Covers sheet to diplay which classes had no cover found
+    if (classesWithNoAvailableTutors.length > 0){
+      sheet.getRange("H" + contactedTutorsRow).setValue("No urgent covers found for: " + classesWithNoAvailableTutors.join(", ")).setBackground('red'); // Contacted tutors row is the 0 indexed row, so applying this on get range needs to add 1 to match 
+      sheet.getRange("I" + contactedTutorsRow).setBackground('red');
+    }
+  }
+}
+
+function notifyOpsClassColNotFound(classNameWithoutNumber){
+  let address = opsEmail;
+  let subject = "Class Name Not Found in Urgent Covers Search";
+  let msgHtml = 
+  "Hi Ops," +
+  
+  "<p> This is an automated email to inform you that there is no class in the Urgent Class Covers form with the name " + classNameWithoutNumber + ". Please <b> look for covers from related subjects</b> in the Ops Tutor Data and the Urgent Class Covers sheets, and email them (group BCC) about which class needs to be covered in which block(s).</p>" + 
+  
+  "<p> The tutors that have already been contacted are listed in the corresponding class sheet in the Class Covers spreadsheet. Please check this sheet before BCC'ing them in the email. NOTE: The code searches for an exact match for classes. If the class is an arts subject (VCD, Creative Practice, Making and Exhibiting) or a non-standard subject (like an ALL UNITS class), check the Ops Data and the Urgent Covers forms manually. </p>" +
+
+  "<p>Thanks,</p>" 
+  ;
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // removes html formatting to be parsed by javascript email function
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text
+}
+
+function notifyOpsNoAvailableUrgentCoversFound(sheetName){
+  let address = opsEmail;
+  let subject = "No Tutors Found in " + sheetName + " Urgent Covers Search";
+  let msgHtml = 
+  "Hi Ops," +
+  
+  "<p> This is an automated email to inform you that no available tutors were found in the urgent covers search for a cover for the " + sheetName + " class for the classes listed in the Class Covers sheet. Please <b> look for covers from related subjects</b> in the Ops Tutor Data and the Urgent Class Covers sheets, and email them (group BCC) about which class needs to be covered in which block(s).</p>" + 
+  
+  "<p> The tutors that have already been contacted are listed in the corresponding class sheet in the Class Covers spreadsheet. Please check this sheet before BCC'ing them in the email.</p>" +
+
+  "<p>Thanks,</p>" 
+  ;
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // removes html formatting to be parsed by javascript email function
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text
+}

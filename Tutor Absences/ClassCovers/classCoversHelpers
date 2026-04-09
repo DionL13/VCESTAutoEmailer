@@ -1,0 +1,233 @@
+function updateForm(sheet, row, choices, noTutorsClasses, checkbox, form, sheetName, block, coveringTutorCode, coveringTutorName) {
+  // Updates choices to remove already covered classes
+
+  let sheetData = sheet.getDataRange().getValues(); // Each element is a row of the class being covered's sheet, indexed from 0
+  let signInClassCol = 0; // Classes in sign in sheet are in the first column, i.e. 0 when indexed from 0.
+  const tutorCodeColSignIn = 2; // Indexed from 0 
+  const absentTutorCodeCol = 9; // Column (indexed from 0) where absent tutor code is stored in class covers response form sheet
+  const classroomColSignIn = 1;
+  let ssSignInBlockSheet = ssSignIn.getSheetByName(block);
+  let mostRecentClassesCoveredArray = []; // Array to store which classes have been covered in the most recent form submission
+
+  // Creating a set for all classes that have been covered
+  let coveredClasses = new Set();
+
+  // Putting all listed classes from form submissions into the set
+  let classesCol = 3; // Number index for column in sheetData, D = 3 indexed from 0
+  for (let i = 1; i < sheetData.length; i++){ // Starting from i = 1 to not include form questions (indexed from 0)
+    if (sheetData[i][0] !== ""){ // If a time stamp exists
+
+      let tutorsCovers = sheetData[i][classesCol].split(', '); // Splits the string into a vector 
+      for (let j = 0; j < tutorsCovers.length; j+=1){ // Iterating over each class a tutor can cover in a single row in the form submission 
+        if (tutorsCovers[j] != "None"){
+          coveredClasses.add(tutorsCovers[j]);
+
+          if(i == row - 1){ // If the row being checked is the row of the most recent submission (row - 1 since row is 1-indexed and i is 0-indexed)
+            mostRecentClassesCoveredArray.push(tutorsCovers[j]);
+          }
+
+          // Removing option from form submission if hasn't already been removed
+          try {
+            index = choices.indexOf(tutorsCovers[j]); // Gets the index of where this class exists in choices
+            if (index != -1){ // indexOf() returns -1 if no matches are found, and positive indices otherwise 
+              choices.splice(index, 1);
+            }
+          } catch(error){ // If item has already been removed, continue
+            continue;
+          }
+        }
+      }
+      if (coveredClasses.size == noTutorsClasses.length){
+        break; // Stops for loop search across all rows when all classes have been covered
+      }
+    }
+    else if (sheetData[i][0] === ""){
+      continue; // Skip to next row with a timestamp in for loop 
+    }
+  }
+
+  // Updating classes which still need a cover as the choices of the form
+  checkbox.asCheckboxItem().setChoiceValues(choices);
+
+  // Setting each class in covered classes to ABS if is has not already been set for most recent submission
+  let mostRecentClassesCoveredLetters = mostRecentClassesCoveredArray.map(element => element.at(-1)); // Maps each element to the letter, i.e. ['Block 1A', 'Block 1B'] => ['A', 'B']
+  let absentTutorCode = sheetData[0][absentTutorCodeCol].split(": ")[1];
+  let classRoom; // Used later for putting a new row in sign-in sheet for class cover
+  let classColIndices = []; // Storing the column indices for the tutor sign-in sheet which correspond to which class(es) have been covered in the most recent form submission
+
+  let ssSignInData = ssSignInBlockSheet.getDataRange().getValues(); // Array indexed from 0 for all values within tutor sign-in sheet in the corresponding block of the absence
+  for (let row = 6; row < ssSignInData.length; row ++){ // Classes start at row 7 (i.e. row 6 indexed from 0), finding the class 
+    if (ssSignInData[row][signInClassCol] === sheetName.split(" (")[0]){ // Removing duplicate index if exists
+      // Checking that this row is the row for the tutor who submitted the absence
+      if (ssSignInData[row][tutorCodeColSignIn] == absentTutorCode){
+
+        classRoom = ssSignInData[row][classroomColSignIn]; // Updating classroom
+        for (let classIdx = 0; classIdx < mostRecentClassesCoveredLetters.length; classIdx++){
+          classColIndices.push(convertClassLetterToColumn(mostRecentClassesCoveredLetters, classIdx)); // Gets column index (indexed from 0) of class
+          if (ssSignInData[row][classColIndices.at(-1)] !== "ABS"){ 
+            ssSignInData[row][classColIndices.at(-1)] = "ABS"; // Updating cell in array storage
+          }
+        }
+      } 
+      else if (ssSignInData[row][tutorCodeColSignIn] !== absentTutorCode){ // Goes to next row to check if the name doesn't match
+        continue;
+      }
+
+      ssSignInBlockSheet.getDataRange().setValues(ssSignInData); // Updating tutor sign-in sheet 
+      break; // Stops for loop once classes have been found
+    } 
+  }
+
+  // Adding class cover to tutor sign-in sheet
+  let tutorSignInLastRow = ssSignInData.length + 1; // Gets row as indexed in sheet (i.e. not indexed from 0), +1 to edit row below the last row
+  let setValuesArray = [Array.from({length:10}, () => "")]; // 10 columns make up class name, room, tutor code, tutor name and 6 classes. Nested array since the entire row needs to be its own array
+
+  console.log("setValuesArray: ", setValuesArray);
+  setValuesArray[0][0] = sheetName.split(" (")[0]; // .split() removes duplicate index
+  setValuesArray[0][1] = classRoom;
+  setValuesArray[0][2] = coveringTutorCode;
+  setValuesArray[0][3] = coveringTutorName;
+    
+  for (let index of classColIndices){ // Each index corresponds to a column for a class in the tutor sign in sheet
+    setValuesArray[0][index] = "⠀";
+  }
+  console.log("setValuesArray: ", setValuesArray);
+  ssSignInBlockSheet.getRange("A" + tutorSignInLastRow + ":J" + tutorSignInLastRow).setValues(setValuesArray);
+
+
+  // If all of the blocks are covered, then close the form and delete it. Note: Doesn't affect linked sheet and still shows the closed message if a tutor attempts to put in a new response
+  if (coveredClasses.size == noTutorsClasses.length){
+    form.setAcceptingResponses(false);
+    
+    // Delete form from drive 
+    DriveApp.getFileById(form.getId()).setTrashed(true);
+
+    // Setting sheet colour to green (Covered colour)
+    sheet.setTabColor('#00ff00'); // Sets colour to green
+
+    // Putting class name in Covered section of array for Daily Status
+    let coveredClassesValueString = statusProperties.getProperty('coveredClassesKey');
+    let coveredClassesValueArray = JSON.parse(coveredClassesValueString);
+    coveredClassesValueArray.push(sheetName + " - " + block);
+    statusProperties.setProperty('coveredClassesKey', JSON.stringify(coveredClassesValueArray)); // Updating CoveredClassKey
+    
+    // Updating Daily Status sheet Covered Classes
+    let temporaryArrayForSetVals = coveredClassesValueArray.map(element => [element]); // setValues() requires a 2D array of the form of the data, so setting values down a column requires [[A],[B],[C]] not [A,B,C] which would be for elements in the same row
+    let endRow = 3 + temporaryArrayForSetVals.length - 1; // Starting from row 3, -1 since when there's only 1 element in "Covered", want endRow = 3
+  
+    statusSheet.getRange("C3:C" + endRow).setValues(temporaryArrayForSetVals);
+
+    let newClassesValueArray = JSON.parse(statusProperties.getProperty('newClassesKey'));
+    if (newClassesValueArray.includes(sheetName + " - " + block)){ // Gets string and parses it to an array from key-value pair
+
+      // Finding the end row of the range to alter 
+      let clearRow = 3 + (newClassesValueArray.length - 1); // Starting from row 3, -1 since when 1 class is remaining before removal (i.e. length is 1), we want to clear that class from row 3
+
+      statusSheet.getRange("A3:A" + clearRow).clearContent(); // Removes existing classes so that the new classes can replace them
+
+      newClassesValueArray.splice(newClassesValueArray.indexOf(sheetName + " - " + block),1); // Removes class from "New"
+      temporaryArrayForSetVals = newClassesValueArray.map(element => [element]);
+
+      if (newClassesValueArray.length > 0){ // Only putting in new values if the new array isn't empty
+        endRow = clearRow - 1; // -1 to account for having removed an element from newClassesValueArray, so if 1 class is left, range is A3:A3 = A3
+        statusSheet.getRange("A3:A" + endRow).setValues(temporaryArrayForSetVals); // Resetting "New" column with class removed
+      }
+    
+      statusProperties.setProperty('newClassesKey', JSON.stringify(newClassesValueArray)); // Updates newClassesKey
+    }
+    else {
+      let ongoingClassesValueArray = JSON.parse(statusProperties.getProperty('ongoingClassesKey'));
+      if (ongoingClassesValueArray.includes(sheetName + " - " + block)){
+
+        // Finding the end row of the range to alter 
+        let clearRow = 3 + (ongoingClassesValueArray.length - 1); 
+        statusSheet.getRange("B3:B" + clearRow).clearContent(); 
+
+        ongoingClassesValueArray.splice(ongoingClassesValueArray.indexOf(sheetName + " - " + block),1); 
+        temporaryArrayForSetVals = ongoingClassesValueArray.map(element => [element]);
+
+        if (ongoingClassesValueArray.length > 0){ 
+          endRow = clearRow - 1; 
+          statusSheet.getRange("B3:B" + endRow).setValues(temporaryArrayForSetVals); 
+        }
+    
+      statusProperties.setProperty('ongoingClassesKey', JSON.stringify(ongoingClassesValueArray));
+      }
+    }
+  }
+}
+
+function tutorEmailNotFound(name, tutorCode, classNameString){
+  let address = opsEmail;
+  let subject = "Tutor Email Not Found after Class Cover Found";
+  let msgHtml = 
+  "Hi Ops, " + 
+
+  "<p> This is an automated email to notify you that the email of the tutor, <b>" + name + "</b> with tutor code <b>" + tutorCode + "</b> could not be found in Ops Tutor Data to confirm which classes they will be covering. Please find this tutor's email manually and send them a confirmation of the classes they will be tutoring by looking at the <b>orange</b> highlighted row in the " + classNameString + " sheet in the Class Covers (Responses) spreadsheet. The sign-in sheet has already been updated to include their name, however the TMS needs to be updated manually.</p>" +
+
+  "<p> Thanks< </p>";
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+}
+
+function confirmClassCover(row, sheet, teamTutor = false){
+  // Function takes in the row for a form submission in the linked google sheet and finds the tutor code, searches the Ops tutor data, then emails them to confirm which classes they are covering
+
+  let sheetData = sheet.getDataRange().getValues();
+  let formSubmissionData = sheetData[row-1]; // Array composed of elements of the row
+  let classes = formSubmissionData[3].split(", "); // Stored as an array of strings of classes e.g ["Block 1A", "Block 1B"]
+
+  // Sending an email if the tutor hasn't selected "None" 
+  if(!classes.includes("None")){
+
+    let tutorCode = formSubmissionData[1].trim(); // trim() allows for rogue spaces before and after string
+    let name = formSubmissionData[2].trim();
+    let classNameString = sheet.getName(); 
+    let className = classNameString.split(" (")[0]; // Removes the duplicate index of the class name from the sheet if this isn't the first class cover for the same subject, i.e. Physics 3 & 4 2 (1) loses the (1).
+    let tutorEmail = "";
+
+    // Finding tutor email
+    let ssTutor = SpreadsheetApp.openById(ssTutorId); // Opening Ops tutor data spreadsheet
+    let ssTutorData = ssTutor.getSheets()[0].getDataRange().getValues();
+
+    [tutorEmail, _] = findTutorEmail(tutorCode, ssTutorData);
+
+    // Building the HTML class list from classes
+    htmlClasses = "<ul>";
+    for (let classLetter of classes){
+      htmlClasses += "<li>" + classLetter + "</li>";
+    }
+    htmlClasses += "</ul>";
+
+    let tutorStatus = ""; // Status of tutor (solo or team tutor)
+    if (teamTutor == false){
+      tutorStatus = "solo";
+    }
+    else if (teamTutor == true){
+      tutorStatus = "team";
+    }
+
+    if (tutorEmail != ""){ // If a tutor email is found corresponding to the tutorCode
+      let address = tutorEmail;
+      let subject = className + " Class Cover Confirmation";
+      let msgHtml = 
+      "Hi " + name + "," +
+
+      "<p> This is an automated email to confirm that you are covering " + className + " as a <b>" + tutorStatus + " tutor</b> in the following blocks: " +
+
+      htmlClasses +
+
+      "If you are no longer able to cover these classes or this information is incorrect, please reply to this email <b>as soon as possible</b>. </p>" +
+
+      "<p> Thanks, </p>";
+      let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+      MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+    }
+    else if (tutorEmail == ""){
+      sheetRow = row - 1;
+      SpreadsheetApp.openById(formResponsesSheetId).getRange(sheetRow + ":" + sheetRow).setBackground('orange'); // Sets entire row background to orange
+      tutorEmailNotFound(name, tutorCode, classNameString); // Notify Ops that the class cover's email couldn't be found
+    }
+  }
+}

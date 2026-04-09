@@ -1,0 +1,44 @@
+function buildTimetableMap() {
+  // Function converts a google sheet with the timetable to a map between each block (i.e. "2E"), to a day (i.e. "Wed 15-Jan")
+
+  let programTimetableSheet = ssUrgentCoversResponse.getSheetByName('Program Timetable');
+  let programTimetableSheetData = programTimetableSheet.getDataRange().getValues();
+
+  // Changing programTimetableSheetData to have the dates row formatted as displayed
+  let programTimetableSheetDates = programTimetableSheet.getRange('A2:P2').getDisplayValues();
+  programTimetableSheetData[1] = programTimetableSheetDates[0]; // [0] since getDisplayValues() returns a 2D array which is a nested array of one row
+
+  // Creating map
+  let timetableMap = new Map();
+
+  // Creating regular expressions (RegEx's) to check if a block is valid in the following for loop
+  regexLetters = /[A-F]/;
+  regexNumbers = /[1-6]/;
+
+  // For each day building the map (each column corresponds to a different day during program)
+  for (let column = 4; column < programTimetableSheetData[0].length; column++){ // Starting at 4 since this is where classes begin (Monday = E), [0] since want to iterate over the non-empty columns
+
+    let day = programTimetableSheetData[2][column] + " " + programTimetableSheetData[1][column]; // Sets day to day + date, i.e. "Mon 5-Jan"
+    let dayBlocks = programTimetableSheetData.map(timeslot => timeslot[column]); // Gets all elements from the day
+
+    // Adding a block-day pair into the map if the element of dayBlocks is a valid block format (i.e. 1A, 2B, etc.)
+    for (let block of dayBlocks){
+      if (block.length == 2){ // Valid blocks are strings of length 2
+        if (regexNumbers.test(block) && regexLetters.test(block)){ // Valid blocks also need a letter and a number. regex.test(block) returns true if block contains a character contained in the regex pattern defined above
+          // Add new block-day pair to map
+          timetableMap.set(block, day); // Sets key-value pair of for example "1C","Tue 7-Jan"
+        }
+      }
+    }
+  }
+
+  let timetableMapValue = [...timetableMap]; // Converts timetableMap into a nested array of pairs which can be stringified
+
+  // Adding map to statusProperties
+  statusProperties.setProperty("timetableMapKey", JSON.stringify(timetableMapValue)); 
+}
+
+function resetTimetableMap(){
+  // Function deletes the map for the current timetable. Used for a timetable update or a new year of program
+  statusProperties.deleteProperty("timetableMapKey");
+}

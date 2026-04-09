@@ -1,0 +1,60 @@
+function updateDailyStatus(){
+  // Runs at 5.30 pm after briefing
+
+  // notifyOpsStatus(); // Notify Ops of which classes are new for the day and have been covered before updating the system
+
+  // Resetting covered classes tab colours back to white
+  let coveredClassesValueArray = JSON.parse(statusProperties.getProperty('coveredClassesKey')); // Gets string value from properties, then coverts to an array
+  for (let sheetName of coveredClassesValueArray){
+  // Getting sheet by name of class, resetting colour and hiding covered class sheets. Since all classes in covered classes are green, no need to check the colours.
+    let className = sheetName.split(" - ")[0];
+    let classSheet = ssFormResponses.getSheetByName(className);
+    classSheet.setTabColor(null); // Resets tab colour
+    classSheet.hideSheet(); // Hides the sheet
+  }
+  
+  // Changing New classes to orange as they move to Ongoing
+  let newClassesValueArray = JSON.parse(statusProperties.getProperty('newClassesKey')); 
+  for (let sheetName of newClassesValueArray){
+    let className = sheetName.split(" - ")[0];
+    let classSheet = ssFormResponses.getSheetByName(className);
+    classSheet.setTabColor('#ffa500');
+  }
+  
+  // Clearing "New" and "Covered" sections
+  statusSheet.getRange("A3:A").clearContent();
+  statusSheet.getRange("C3:C").clearContent();
+
+  // Putting previous day "New" classes into "Ongoing"
+  if (newClassesValueArray.length > 0){
+    let lastRow = 3 + newClassesValueArray.length - 1; // Gets row index for where the values need to stop being filled, starting at 3, -1 to account for indexing 
+    let temporaryArrayForSetVals = newClassesValueArray.map(element => [element]); // [[Class1],[Class2]] sets classes in adjacent rows, [Class1,Class2] sets them in adjacent columns
+
+    statusSheet.getRange("B3:B" + lastRow).setValues(temporaryArrayForSetVals);
+  }
+
+  // Updating properties
+  let newClassesValueString = statusProperties.getProperty('newClassesKey'); // Gets string of newClassesValue
+  statusProperties.setProperty('ongoingClassesKey', newClassesValueString); // Sets all new classes to now be ongoing for the next day
+  statusProperties.setProperty('newClassesKey', '[]'); // Empties the stringified array for the next day
+  statusProperties.setProperty('coveredClassesKey', '[]'); // Clearing covered classes array
+}
+
+function notifyOpsStatus(){
+
+  // Email to tell Ops to check the Daily Status Sheet before the sheet updates at 5.30 pm
+  
+  let address = opsEmail;
+  let subject = "Daily Status for Class Covers";
+  let msgHtml = 
+  "Hi Ops, " + 
+
+  "<p> This is an automated email to remind you to check the Daily Status sheet in the Class Covers (Responses) spreadsheet in the Ops Drive during briefing. Please check that there are no tutors covering the same class (i.e. a double-up) and that each class has a cover for each block under the 'Covered' section" + 
+
+  "<p> If the Daily Status tab is checked <b>after</b> 5.30 pm due to extenuating circumstances, please check the version history to ensure there are no issues with the covers. Please note that all covers found have already been contacted to confirm the classes they are covering.</p>" +
+  
+  "<p> Thanks, </p>";
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+}

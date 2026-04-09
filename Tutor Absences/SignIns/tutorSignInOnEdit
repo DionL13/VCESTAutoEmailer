@@ -1,0 +1,164 @@
+function tutorSignInOnEdit(e){
+
+  // Immediately terminating function call if edit is not by Ops
+  let possibleManualEditsArray = [
+    "ABS", "ABS !!", "ABS - Find cover", // Ops manual edits within classes section
+    "Submit absences (and find and contact covers if applicable)",
+    "Ignore (resets bolded absences to unbolded, no further action)"]; // Ops responses for manual edit management
+  let edited = e.range; // gets range of edited cells from form submission
+  if(!possibleManualEditsArray.includes(edited.getValue())){
+    return;
+  }
+
+  // Edited cells (also can be a range if is a copy and paste of absences)
+  let editedA1Notation = edited.getA1Notation();
+  let blockSheet = edited.getSheet();
+  let blockSheetData = blockSheet.getDataRange().getValues();
+
+  let firstColumn = edited.getColumn() - 1 ; // -1 to match column index of data array. getColumn() returns first column index of all cells in the range. Accounts for a paste of multiple absences in one edit
+  let lastColumn = edited.getLastColumn() - 1; // Gets last column of the edited range
+  let row = edited.getRow() - 1; // -1 to match row index of data array
+
+  let classesStartCol = convertClassLetterToColumn(["A"], 0); // Column range start for onEdit call
+  let classesEndCol = convertClassLetterToColumn(["F"],0);
+  let opsResponseCol = colLettertoColNumber("L"); // Indexed at 0 by default
+  let opsResponseCell = blockSheet.getRange("L" + (row+1));
+
+  let tutorCodeCol = 2;
+  let classCodeCol = 0;
+
+  // For manual class absences inputted
+  if(possibleManualEditsArray.includes(edited.getValue()) && (firstColumn >= classesStartCol && lastColumn <= classesEndCol)){ // Only acting if a cell is edited to one of Ops' conditional formatting text options. Starting column after (or including) the A class column, and ending column before (or including) the F class column.
+
+    blockSheet.getRange(editedA1Notation).setFontWeight('bold'); // Sets all edited cells from the current edit to bold
+
+    if (blockSheetData[row][opsResponseCol] === ""){ // Will end up running multiple times on closely spaced edits, however will slightly reduce runtime
+
+      // Putting new data validation rule in the row for the manually inputted absences
+      let rule = SpreadsheetApp.newDataValidation().requireValueInList(
+        ["Submit absences (and find and contact covers if applicable)",
+        "Ignore (resets bolded absences to unbolded, no further action)"]
+        , true) // True ensures dropdown isn't hidden
+        .setAllowInvalid(false) // Rejects other inputs that the ones above
+        .build(); 
+      opsResponseCell.setBackground('red').setDataValidation(rule);
+    }
+  }
+
+  let absentClasses;
+
+  // For responses in OpsResponsesCell (i.e. saying what to do with the manual edit)
+  if (firstColumn === opsResponseCol){ // +1 since first column is a spreadsheet index, not an array index
+
+    let numClassesRequestingTT = 0; // Initialising the number of classes requesting a team tutor (TT)
+
+    // Getting bolded class letters (e.g. ["A","C"])
+    absentClasses = [];
+    let allClassesArray = ["A","B","C","D","E","F"];
+    for (let classLetter of allClassesArray){
+      let classLetterColumnLetter = convertClassLetterToColumn([classLetter],0, toNumber = false); // Gets letter of sheet corresponding to the class letter
+      let classLetterColumnNumber = convertClassLetterToColumn([classLetter],0);
+
+      // Checking which cells in the classes section for the row are bolded, then adding the class letter to the absent classes array if they are
+      if (blockSheet.getRange(classLetterColumnLetter + (row+1)).getFontWeight() === 'bold'){
+        absentClasses.push(classLetter);
+        
+        if (blockSheetData[row][classLetterColumnNumber] === "ABS - Find cover"){ 
+          numClassesRequestingTT += 1;
+        }
+      }
+    }
+
+    // Filling and submitting form if Ops wants to contact covers
+    if (blockSheetData[row][opsResponseCol] === "Submit absences (and find and contact covers if applicable)"){
+
+      // Getting key information required for a form submission
+      let tutorCode = blockSheetData[row][tutorCodeCol];
+      let subjectName = blockSheetData[row][classCodeCol].slice(0,-2); // Subject name does not include the subject number at the end of the subject name, hence slice()
+      let block = blockSheet.getSheetName();
+
+
+      let keyInformationArray = [tutorCode, subjectName, null, block, absentClasses]; // null at index 2 since this corresponds to the "Other" class item in the form
+      
+      // Submitting form for absence with pre-filled details
+      let formResponse = tutorAbsencesForm.createResponse();
+      let formItemsArray = tutorAbsencesForm.getItems(); // Returns an array of all form items
+
+      // Prefilling form questions one at a time
+      for (let i = 0; i < formItemsArray.length; i++){
+
+        if (i === 2 || i === 5){ // Skipping the "Other" item
+          continue;
+        }
+
+        let item = formItemsArray[i];
+
+        // Getting the item type to use createResponse on the specific class
+        switch (i){
+          case 0:
+            item = item.asTextItem();
+            break; // Switch runs each case after (and including) the first match until a break is found
+          case 1:
+            item = item.asListItem();
+            break;
+          case 3:
+            item = item.asMultipleChoiceItem();
+            break;
+          case 4:
+            item = item.asCheckboxItem();
+            break;
+          case 6: // What does this do??
+            item = item.asCheckboxItem();
+            break;
+        }
+
+
+        if(i !== 5 && i !== 6){ // Not addressing team tutor item yet
+          try {
+            let response = item.createResponse(keyInformationArray[i]);
+            formResponse.withItemResponse(response);
+          }
+          catch{ // Failsafe: If class not found in the form, change the subject name submission to "Other", and put the subject name in the "Other" section. This way, the class is dealt with via the form submission automatically and Ops is emailed.
+
+            if (i === 1){ // If the error occured while prefilling the subject name question 
+              let response = item.createResponse("Other"); // Setting subject question to "Other"
+              formResponse.withItemResponse(response);
+            }
+
+            // Setting 'Other' question to subjectName
+            let otherResponse = formItemsArray[2].asTextItem().createResponse(subjectName);
+            formResponse.withItemResponse(otherResponse);
+          }
+        }
+        else if (i === 5){ // If i === 5 then the team tutor status needs to be checked by seeing if the edits contain "Find Cover". Failsafe is to have it send "team tutor" emails if all of the classes have "ABS - Find Cover", but send "solo tutor" emails otherwise since tutors may not want to tutor solo but are comfortable tutoring as a team
+          
+          // BELOW CURRENTLY NOT WORKING, not inputting "Yes" into the form submission. Apps script doesn't access second section like this. Need an alternate solution
+          // Setting team tutor item to "Yes" if the number of classes requesting a team tutor matches the number of absent classes
+          if (numClassesRequestingTT === absentClases.length){
+            let response = item.createResponse("Yes");
+            formResponse.withItemResponse(response);
+          }
+        }
+      }
+
+      formResponse.submit(); // Submits form response
+      opsResponseCell.clearDataValidations().setValue("Updating sheet...").setBackground('blue'); // Removing data validation of opsResponseCell
+      SpreadsheetApp.flush(); // Updating sheet before rechecking it below
+    }
+
+
+
+    // Resetting all bolded classes to unbolded. Regardless of ignore or find and contact inputted, the row needs to be reset
+    for (let classLetter of absentClasses){
+      let classLetterColumn = convertClassLetterToColumn([classLetter],0, toNumber = false); // Gets letter of sheet corresponding to the class letter
+      blockSheet.getRange(classLetterColumn + (row+1)).setFontWeight('normal');
+    }
+
+    // Resetting colouring of opsResponseCell if a form hasn't just been submitted
+    if (opsResponseCell.getValue() !== "Updating sheet..."){
+      opsResponseCell
+      .clearDataValidations() // Removing data validation of opsResponseCell
+      .clear(); // Clears range of contents and formats (including background colour)
+    }
+  }
+}

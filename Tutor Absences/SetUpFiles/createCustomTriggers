@@ -1,0 +1,15 @@
+function createOnFormSubmissionTrigger() {
+  // Creates installable trigger from form Class Covers Responses sheet
+  const ss = SpreadsheetApp.openById(formResponsesSheetId);
+  ScriptApp.newTrigger("closeFormIfAllCovered").forSpreadsheet(ss).onFormSubmit().create();
+}
+
+function createOnEditCoveredClassesTrigger(){
+  const ss = SpreadsheetApp.openById(formResponsesSheetId);
+  ScriptApp.newTrigger("coveredClassesOnEdit").forSpreadsheet(ss).onEdit().create();
+}
+
+function createOnEditTutorSignInTrigger(){
+  const ss = SpreadsheetApp.openById(signInSSId);
+  ScriptApp.newTrigger("tutorSignInOnEdit").forSpreadsheet(ss).onEdit().create();
+}

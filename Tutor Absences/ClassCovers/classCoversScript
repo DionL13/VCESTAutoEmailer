@@ -1,0 +1,34 @@
+function formSubmissionUpdates(e) {
+  const ss = e.source;; 
+  
+  const edited = e.range;
+  const sheet = edited.getSheet();
+  const className = sheet.getSheetName();
+  const form = FormApp.openByUrl(sheet.getFormUrl()) ; // Getting form attached to the sheet
+  const row = edited.getRow(); // Gets row of form submission
+  const sheetData = sheet.getDataRange().getValues(); // Each element is a row of the sheet, indexed from 0
+  let tutorCodeColClassCoversForm = 1;
+  let tutorNameColClassCoversForm = 2;
+
+  let coveringTutorCode = sheetData[row - 1][tutorCodeColClassCoversForm];
+  let coveringTutorName = sheetData[row - 1][tutorNameColClassCoversForm];
+
+  // Getting form checkbox item 
+  const checkbox = form.getItems(FormApp.ItemType.CHECKBOX)[0]; // 0 since getItems returns an array of all items of that type
+  let choices = checkbox.asCheckboxItem().getChoices().map(choice => choice.getValue()); // Returns an array of the current choices, mapped so every choice has its value (i.e. the option) stored in the choices array. Slice so that "None" isn't stored
+
+  let noTutorsClassesString = sheet.getRange('F1').getValue().split(':')[1].trim(); // Cuts off the text before the colon, takes the second piece in the array formed by split()
+  let noTutorsClasses = noTutorsClassesString.split(','); // Array of classes with no tutors
+  let block = noTutorsClasses[0].slice(0,-1); // Doesn't include class letter
+
+  // Updating form to not include already covered classes, and closing the form if all classes have been covered
+  let classesCol = 3; // Number index for column in sheetData, D = 3 indexed from 0
+  if (!sheetData[row - 1][classesCol].split(", ").includes("None")){ // If most recent submission doesn't include "None"
+    updateForm(sheet, row, choices, noTutorsClasses, checkbox, form, className, block, coveringTutorCode, coveringTutorName);
+  }
+
+ confirmClassCover(row, sheet);
+
+  // Above this is working
+  
+}

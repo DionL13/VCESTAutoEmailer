@@ -1,0 +1,355 @@
+function colLettertoColNumber(columnLetter){
+  // Function converts column letter to a column number, only for columns A-Z. These are the columns of the ARRAY form of the sheets!! NOT the column of the sheets themselves!!
+
+  let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice();
+  let colNumber = alphabet.indexOf(columnLetter); // matches indexing of array 
+
+  return colNumber;
+}
+
+function colNumbertoColLetter(columnNumber){
+  // Function converts column number to a column letter, only for columns A-Z
+
+  let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice();
+  let colLetter = alphabet[columnNumber-1]; // -1 accounts for indexing from 0 and columns beginning at 1
+
+  return colLetter;
+}
+
+function notifyOpsOrange() {
+  // Notifies Ops immediately when a form is submitted incorrectly or with a subject not in the dropdown list
+  let address = opsEmail; // Change to Ops email
+  let subject = "Tutor Absences Unlisted Subject"; 
+  let msgHtml = 
+  "Hi Ops Members," + 
+  "<p> There is a new problematic tutor absence submission that needs to be resolved in the Tutor Absences (Responses) sheet.</p>" + 
+
+  "<p>If the row is <b> orange </b>, this means that a non-listed subject has been typed into the form. If this is a standard subject (like a subject name and units 1 and 2 for example, NOT a subject like All Units French), <b>resolve this by</b> editing the google form, adding the response as an option. Then please resubmit the form on behalf of the tutor, maintaining the same information. </p>" +
+  
+  "<p> This is an automated email. Please do not respond. If you have further questions, please speak to an Ops Coordinator. </p>" +
+  "<p> Thanks, </p>";  
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // removes html formatting to be parsed by javascript email function
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text
+}
+
+function convertClassLetterToColumn(absentClasses, classIdx, toNumber = true){
+  let absClassCol = ""; // Initialising corresponding column to change to ABS in tutor sign-in sheet
+  // Matching class letter to corresponding column in tutor sign-in sheet
+  switch (absentClasses[classIdx]){
+    case "A":
+      absClassCol = classLettersCol[0];
+      break;
+    case "B":
+      absClassCol = classLettersCol[1];
+      break;
+    case "C":
+      absClassCol = classLettersCol[2];
+      break;
+    case "D":
+      absClassCol = classLettersCol[3];
+      break;
+    case "E":
+      absClassCol = classLettersCol[4];
+      break;
+    case "F":
+      absClassCol = classLettersCol[5];
+      break;
+  }
+
+  // By default will return the column number, but if toNumber is set to false, will return the column letter
+  if (toNumber == true){
+    return colLettertoColNumber(absClassCol); // Returns column number (of array, i.e. indexed from 0)
+  }
+  else if (toNumber == false){
+    return(absClassCol);
+  }
+}
+
+
+function notifyTeamTutorAbsence(tutorCode, availableClasses, subjectName, block, ssTutorData){
+  // Function emails a tutor directly if they put absences across multiple blocks
+  [tutorEmail, prefName] = findTutorEmail(tutorCode, ssTutorData);
+
+  let soloClassesHtml = "<ul>"; // Initialising html text for days where tutor will be solo
+
+  for (let i = 0; i < availableClasses.length; i += 1){ // Creating html list for all classes where tutor will be solo
+    soloClassesHtml += "<li>" + block + availableClasses[i] + "</li>";
+  }
+  soloClassesHtml += "</ul>";
+
+  address = tutorEmail;
+  subject = "Team Tutor Absence";
+  msgHtml = 
+  "Hi " + prefName + "," + 
+
+  "<p> This email is to let you know that your team tutor(s) will be <b>absent</b> for your <b>" + subjectName + "</b> class in the following block(s) in case you weren't already aware: </p>" +
+
+  soloClassesHtml +
+
+  "<p> Please let us know if you are comfortable tutoring this class solo or if you would prefer a team tutor to accompany your class and we will try our best to find a suitable cover. </p>" +
+
+  "<br>Thanks, </br>";
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+}
+
+
+function findTutorEmail(tutorCode, ssTutorData) {
+  // Finds tutor email and preferred name by searching tutor code in the Ops data
+
+  // NOTE: Needs to be altered in different years to have different tutor spreadsheet IDs
+  let tutorCodeCol = colLettertoColNumber("A");
+  let tutorEmailCol = colLettertoColNumber("H");
+  let tutorPrefNameCol = colLettertoColNumber("X");
+  let tutorFirstNameCol = colLettertoColNumber("E");
+  let prefName = "";
+  let tutorEmail = "";
+
+  // Searching for tutor in Tutor Data Sheet
+  let numTutors = ssTutorData.length; // ssTutorData is a nested array where the number of inner arrays is the number of rows, i.e. length is number of rows
+
+  for (let i = 0; i < numTutors; i += 1){
+    let searchString = ssTutorData[i][tutorCodeCol]; // The tentative checking value
+    
+    if (searchString == tutorCode){ // If tutorCode matches row, find tutor email and set it as the address
+      tutorEmail = ssTutorData[i][tutorEmailCol];
+
+      // Finding tutor preferred name 
+      prefName = ssTutorData[i][tutorPrefNameCol];
+
+      if (prefName == ""){ // If no preferred name is found
+        prefName = ssTutorData[i][tutorFirstNameCol];
+      }
+    }
+  }  
+
+  return [tutorEmail, prefName];
+}
+
+function uniqueTutors(teamTutorCodes){
+  // Function returns a set of the unique tutor codes 
+
+  let uniqueTutorCodesSet = new Set();
+  for (let i = 0; i < teamTutorCodes.length; i += 1){ // Iterating over each class letter list in teamTutorCodes
+    if (teamTutorCodes[i].length > 0){ // Can only iterate over elements of an array if it's non-empty
+      for (let j = 0; j < teamTutorCodes[i].length; j += 1){ // Iterating over elements within each class
+        uniqueTutorCodesSet.add(teamTutorCodes[i][j]);
+      }
+    }
+  }
+  uniqueTutorCodes = Array.from(uniqueTutorCodesSet); // Storing set as an array to be able to be indexed
+
+  return uniqueTutorCodes;
+}
+
+function getClassesForEachTT(uniqueTutorCodes, teamTutorCodes, absentClasses){
+  // returns an nested array where each inner array corresponds to the classes for which each TT needs to be notified of an absence
+
+  classesForEachTT = Array.from({length: uniqueTutorCodes.length}, () => []); // Creates a nested array with each inner array containing the classes they need to be notified of, i.e. if uniqueTutorCodesArray = [tutorCode1, tutorCode2], classesForEachTT = [[],[]]
+  for (let idx = 0; idx < uniqueTutorCodes.length; idx += 1){ // For each name in uniqueTutorCodes
+    for (let j = 0; j < teamTutorCodes.length; j += 1){ // Checking each absent class in teamTutorCodes array
+      if (teamTutorCodes[j].includes(uniqueTutorCodes[idx]) && teamTutorCodes[j].length == 1){
+        classesForEachTT[idx].push(absentClasses[j]); // If tutor code is in the team tutor codes for a given class, add that class into classesForEachTT
+      }
+    }
+  }
+
+  return classesForEachTT;
+}
+
+function notifyOpsCodeNotFound(tutorCode, subjectName, block, absentClassesString){
+  let address = opsEmail;
+  let subject = "Tutor Absences: Tutor Not Found in Sign In Sheet";
+  let msgHtml = 
+  "Hi Ops, " + 
+
+  "<p> This email is to notify you that an absence has been recorded by a tutor with the code <b>" + tutorCode + "</b> for <b>" + subjectName + "</b> in <b>" + block + absentClassesString + "</b> and this tutor was not found in the sign in sheet for the reported day of absence. Please follow up with this tutor directly and confirm their absence, then manually input the absence into the correct sign in sheet.</p>" +
+
+  "<p> This is an automated email. Do not respond. If you have any further questions, please speak to an Ops coordinator. </p>" +
+  "<br> Thanks, </br>"; 
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+}
+
+function createFormForClassCover(className, block, noTutorsClasses, potentialCoversCodes, tutorCode){
+  // Function creates a new Google Form sheet with the name of the class (including unique identifier) + "Class Cover". This sheet then links to the Class Covers spreadsheet as a single sheet within the spreadsheet, tracking the tutors' responses to the form. Once the form has a successful cover for all classes, the form is deleted and the tutors are notified of a confirmation. The tutors who respond after will get an automated response saying that a class cover was found, OR will no longer take responses with a message saying a class cover was found. 
+
+  let form = FormApp.create(className + ' Class Cover', true); // creates a form to be published
+
+  // Setting form properties by chaining (applying same properties to form in succession)
+  form.setDescription('Please select the blocks you can cover. If you cannot cover any of the classes, please select the "None" option')
+    .setConfirmationMessage('Thank you for your response. If you are the first respondant who can cover a class, you will receive an automated email confirmation from Ops shortly. If your availability changes and you can no longer cover a class, please email Ops as soon as possible.')
+    .setAllowResponseEdits(false)
+    .setCustomClosedFormMessage("A class cover has been found for all requested blocks. If you are seeing this message after submitting the form, your response was NOT logged as a cover has already been found for the classes you submitted.");
+
+
+  // Setting questions for Tutor Code and tutor name so that the tutor can be added to the sign in sheet
+  const tutorCodeItem = form.addTextItem();
+  tutorCodeItem.setRequired(true);
+  tutorCodeItem.setTitle('What is your tutor code?');
+
+  const tutorNameItem = form.addTextItem();
+  tutorNameItem.setRequired(true);
+  tutorNameItem.setTitle('What is your first name?');
+
+  // Setting questions for classes to be covered
+  const item = form.addCheckboxItem();
+  item.setRequired(true);
+  item.setTitle('Which block(s) can you cover?');
+
+  let blockPlusClasses = noTutorsClasses.map(x => block + x); // New array which maps the absentClasses array to an array with every element having the block variable appended before the class
+  blockPlusClasses.push("None"); // Adds "None" to the end of the array, returns the new length of the array
+
+  item.setChoiceValues(blockPlusClasses); // Sets possible values as blocks and classes, and None as the last option
+
+  // Setting form response destination to the sheet
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, formResponsesSheetId); // Sets responses to go into a new sheet in spreadsheet
+  SpreadsheetApp.flush(); // Updates form before getting most recent sheet
+
+  newSheet = ssFormResponses.getSheets()[0]; // Gets most recently created sheet
+  newSheet.setTabColor('yellow'); // Sets colour of tab to the "New" colour
+
+  // Setting name to be the name of the class, if there are duplicates, set the name as the name of the class + (i), where i is the next unused integer
+  let sheetName = ""; 
+  let idx = 1;
+  try{ // If no other sheets share the same name, won't throw an error
+    newSheet.setName(className);
+    sheetName = className;
+  } 
+  catch(error){
+    let numSheets = ssFormResponses.getNumSheets();
+    while (sheetName == ""){ // Running on each duplicate index
+      let numSameName = 0;
+      for (let i = 0; i < numSheets; i+=1){ // Checking if any of the sheets have the same name 
+        if (ssFormResponses.getSheets()[i].getName() == className + " (" + idx + ")"){
+          numSameName += 1;
+        } 
+      }
+      
+      if (numSameName == 0){
+        newSheet.setName(className + " (" + idx + ")");
+        sheetName = className + " (" + idx + ")";
+      }
+      else if (numSameName > 0){
+        idx += 1;
+      }
+    }
+  } 
+
+  // Getting form link
+  let formLink = form.shortenFormUrl(form.getPublishedUrl());
+
+  // Adding form link to sheet
+  newSheet.getRange('F2').setFormula('=HYPERLINK("' + formLink + '" , "Form Link")');
+
+  // Adding option to contact urgent covers
+  newSheet.getRange('H1').setValue("Contact Urgent Covers?");
+  newSheet.getRange('I1').insertCheckboxes(); // Adds a checkbox under the question
+  newSheet.getRange('H1:I1').setBackground('#9933ff').setFontColor('white');
+
+  // Setting cell F1 (outside of form responses) to the blocks which need to be covered as a storage mechanism
+  newSheet.getRange('F1').setValue('Classes with no tutors: ' + blockPlusClasses.slice(0,-1).join(",")); // Not including "None"
+  newSheet.getRange('F1:G1').setBackground('#0099ff').setFontColor('white');
+
+  // Listing which tutors have been contacted in cells in the F column
+  newSheet.getRange('F3').setValue("Contacted Tutors")
+  newSheet.getRange('F3:G3').setBackground('#00ffff');
+
+  // Adding absent tutor code to form responses sheet for storage 
+  newSheet.getRange('J1').setValue("Absent Tutor Code: " + tutorCode);
+
+  let potentialCoversCodesForSetVals = potentialCoversCodes.map(element => [element]);
+
+  if (potentialCoversCodes.length > 0){
+    let lastRow = 4 + (potentialCoversCodes.length - 1); // Inputs start from 4th row. If 1 element, input tutor code into 4th row
+    newSheet.getRange('F4:F' + lastRow).setValues(potentialCoversCodesForSetVals);
+  }
+
+  // Updating Property 
+  let newClassesValueString = statusProperties.getProperty('newClassesKey'); // Accesses string version of current value associated with the key
+  let newClassesValueArray = JSON.parse(newClassesValueString); // Converts string extracted from key-value pair into a JavaScript object (namely an array)
+
+  newClassesValueArray.push(sheetName + " - " + block); // Updating "new" array. No double-ups on names occur because each sheet name only exists once. Automatically accounts for duplicates in creating sheet name
+
+  statusProperties.setProperty('newClassesKey', JSON.stringify(newClassesValueArray)); // Updating key-value pair. Both key and value must be strings
+
+  let temporaryArrayForSetVals = newClassesValueArray.map(element => [element]); // setValues() requires a 2D array of the form of the data, so setting values down a column requires [[A],[B],[C]] not [A,B,C] which would be for elements in the same row. The split() is so the classes written to the sheet don't have duplicate indices attached but these indices remain in statusProperties
+
+  // Updating Daily Status Sheet
+  let endRow = 3 + temporaryArrayForSetVals.length - 1; // Starting from row 3, -1 since when there's only 1 element in "New", want endRow = 3
+  statusSheet.getRange("A3:A" + endRow).setValues(temporaryArrayForSetVals);
+
+  return [formLink, sheetName];
+}
+
+
+function emailPotentialCovers(potentialCovers, className, block, noTutorsHtml, noTutorsClasses, potentialCoversCodes, tutorCode, formLink, teamTutor = false){ 
+  // teamTutor logical is whether the tutor will have a team tutor that they are covering with. False by default, set to true when team tutor requests a class cover
+
+  let subjectName = className.split(" ").slice(0,-1).join(" "); 
+  
+  let subject = subjectName + " Class Cover Needed"; 
+  let msgHtml = ""; // initialising message to be updated inside if statement
+
+  for (let i = 0; i < potentialCovers.length; i+=1){
+    let address = potentialCovers[i][1]; // No direct address, only bcc's
+    if (teamTutor == false){ // default condition
+      msgHtml = 
+
+      "Hi " + potentialCovers[i][0] + "," + 
+
+      "<p> We are looking for a tutor to cover " + "<b>" + subjectName + "</b>" + " for class(es)</p>" +
+      
+      noTutorsHtml + 
+      
+      " as a <b>solo</b> tutor, and found you as a potential tutor for this subject. If you are available to cover <b>any or all</b> of these classes, please respond in the Google Form using the link below, selecting all classes you are able to cover. If you aren't able to cover any, please select the None option.</p>" +
+
+      "<p>" + formLink + "</p>" + 
+
+      "<p> Ops will contact you to confirm the classes that you will be covering if you do <b>not</b> select the None option. Your prompt response and help is greatly appreciated.</p>" + 
+
+      "Thanks,"; 
+
+      let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+      MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+    }
+    else if (teamTutor == true){
+      msgHtml = 
+
+      "Hi " + potentialCovers[i][0] + "," +
+
+      "<p> We are looking for a tutor to cover " + subjectName + " for class(es)</p>" + 
+      
+      noTutorsHtml +
+
+      " as a <b>team tutor</b> (i.e. a tutor's team tutor is absent and they have requested another tutor to assist with the class). If you are available to cover <b>any or all</b> of these classes, please respond in the Google Form link below, selecting all classes you are able to cover. If you aren't able to cover any, please select the None option.</p>" +
+
+      "<p>" + formLink + "</p>" + 
+
+      "<p> Ops will contact you to confirm the classes that you will be covering if you do <b>not</b> select the None option. Your prompt response and your help is greatly appreciated.</p>" + 
+
+      "Thanks,"; 
+
+      let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+      MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+    }
+  }
+}
+
+function notifyOpsNoPotentialCoversFound(className, block){
+  let address = opsEmail;
+  let subject = "No Potential Covers Found for " + className + " in " + block;
+  let msgHtml = 
+
+  "Hi Ops, " + 
+
+  "<p> This is an automated email to inform you that no potential covers were found in searching the Ops Tutor Data for an absence in <b>" + block + "</b> for <b>" + className + "</b>. Please go to the corresponding class sheet in the Class Covers spreadsheet and tick the checkbox in the top right of the data to contact covers from the Urgent Covers sheet. </p> " + 
+
+  "<p> Thanks, </p>";
+
+  let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+  MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text 
+}

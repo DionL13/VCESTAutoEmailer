@@ -1,0 +1,12 @@
+function checkStatusProperty(){
+  console.log("statusProperties :", statusProperties.getProperties());
+}
+
+function resetClassesKeysStatusProperty(){
+  // Removes all keys from statusProperty except for the timetable map, for testing purposes 
+  PropertiesService.getScriptProperties().deleteProperty('newClassesKey');
+  PropertiesService.getScriptProperties().deleteProperty('ongoingClassesKey');
+  PropertiesService.getScriptProperties().deleteProperty('coveredClassesKey');
+
+  console.log("statusProperties :", statusProperties.getProperties());
+}

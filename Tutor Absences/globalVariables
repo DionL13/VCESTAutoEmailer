@@ -1,0 +1,37 @@
+const opsEmail = "REDACTED";
+const signInSSId = 'REDACTED';
+const ssTutorId = 'REDACTED';
+const formResponsesSheetId = 'REDACTED'; // Class covers spreadsheet ID
+const formResponsesTutorAbsencesId = 'REDACTED';
+const urgentCoversResponseId = 'REDACTED'; 
+const tutorAbsencesFormId = 'REDACTED';
+
+const ssSignIn = SpreadsheetApp.openById(signInSSId);
+const ssTutor = SpreadsheetApp.openById(ssTutorId);
+const ssFormResponses = SpreadsheetApp.openById(formResponsesSheetId); // Class covers spreadsheet
+const statusSheet = SpreadsheetApp.openById(formResponsesSheetId).getSheetByName("Daily Status");
+const ssFormResponsesTutorAbsences = SpreadsheetApp.openById(formResponsesTutorAbsencesId);
+const ssUrgentCoversResponse = SpreadsheetApp.openById(urgentCoversResponseId);
+const tutorAbsencesForm = FormApp.openById(tutorAbsencesFormId);
+const classLettersCol = ["E","F","G","H","I","J"]; // Storing which class letters correspond to which columns in tutor sign-in sheet, A = E, etc. 
+
+function declareGlobalVariables() {}
+
+function initializeStatusProperty(){
+  // Using Property service to store a property type (key-value pairs like a dict) between executions globally 
+  const statusProperties = PropertiesService.getScriptProperties();
+
+  if (statusProperties.getProperty('newClassesKey') === null && statusProperties.getProperty('ongoingClassesKey') === null && statusProperties.getProperty('coveredClassesKey') === null){ // Only setting new properties if they don't already exist (getProperty() returns null if doesn't exist)
+    let newProperties = { // Values need to be stored as strings
+      newClassesKey : '[]',
+      ongoingClassesKey : '[]',
+      coveredClassesKey: '[]',
+    }
+    statusProperties.setProperties(newProperties); // Sets the above properties as key-value pairs'
+  }
+
+  console.log("statusProperties :", statusProperties.getProperties());
+  return statusProperties;
+}
+
+const statusProperties = initializeStatusProperty();

@@ -1,4 +1,4 @@
-function createOnFormSubmissionTrigger() {
+function createOnFormSubmissionTrigger() { // Seemingly unused?
   // Creates installable trigger from form Class Covers Responses sheet
   const ss = SpreadsheetApp.openById(formResponsesSheetId);
   ScriptApp.newTrigger("closeFormIfAllCovered").forSpreadsheet(ss).onFormSubmit().create();
@@ -9,7 +9,29 @@ function createOnEditCoveredClassesTrigger(){
   ScriptApp.newTrigger("coveredClassesOnEdit").forSpreadsheet(ss).onEdit().create();
 }
 
+function createUpdateDailyStatusTrigger(){
+  ScriptApp.newTrigger("updateDailyStatus").timeBased().atHour(18).nearMinute(0).everyDays(1).create(); // Runs at 6 pm every day
+}
+
+function createNotifyOpsStatusTrigger(){
+  ScriptApp.newTrigger("updateDailyStatus").timeBased().atHour(16).nearMinute(0).everyDays(1).create(); // Runs at 4 pm every day
+}
+
 function createOnEditTutorSignInTrigger(){
   const ss = SpreadsheetApp.openById(signInSSId);
   ScriptApp.newTrigger("tutorSignInOnEdit").forSpreadsheet(ss).onEdit().create();
+}
+
+function createManualClassCoverChangesTrigger(){
+  ScriptApp.newTrigger("manualClassCoversChanges").forSpreadsheet(formResponsesSheetId).onEdit().create();
+}
+
+function createUpdateTutorSignInTrigger(){
+  const ssFormResponsesTutorAbsences = SpreadsheetApp.openById(formResponsesTutorAbsencesId);
+  ScriptApp.newTrigger('updateTutorSignIn').forSpreadsheet(ssFormResponsesTutorAbsences).onFormSubmit().create();
+}
+
+function createFormSubmissionUpdatesTrigger(){
+  const ssFormResponses = SpreadsheetApp.openById(formResponsesSheetId); // Class covers spreadsheet
+  ScriptApp.newTrigger('formSubmissionUpdates').forSpreadsheet(ssFormResponses).onFormSubmit().create();
 }

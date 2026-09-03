@@ -1,21 +1,11 @@
-const opsEmail = "REDACTED";
-const signInSSId = 'REDACTED';
-const ssTutorId = 'REDACTED';
-const formResponsesSheetId = 'REDACTED'; // Class covers spreadsheet ID
-const formResponsesTutorAbsencesId = 'REDACTED';
-const urgentCoversResponseId = 'REDACTED'; 
-const tutorAbsencesFormId = 'REDACTED';
-
-const ssSignIn = SpreadsheetApp.openById(signInSSId);
-const ssTutor = SpreadsheetApp.openById(ssTutorId);
-const ssFormResponses = SpreadsheetApp.openById(formResponsesSheetId); // Class covers spreadsheet
-const statusSheet = SpreadsheetApp.openById(formResponsesSheetId).getSheetByName("Daily Status");
-const ssFormResponsesTutorAbsences = SpreadsheetApp.openById(formResponsesTutorAbsencesId);
-const ssUrgentCoversResponse = SpreadsheetApp.openById(urgentCoversResponseId);
-const tutorAbsencesForm = FormApp.openById(tutorAbsencesFormId);
+const opsEmail = "dionlepair13@gmail.com";
+const signInSSId = '1y9Q0--OYE8EZUYdBrqkh089r06BL0oUq9-DPBhQfiwA';
+const ssTutorId = '1G33BQ8pO_YY0EPZTFAAwQZrpaILODKS6vLyTfgtnWg4';
+const formResponsesSheetId = '1THpqY4YRoBoVOK1Ps9hEEdHXsefDo88LhaUEtO_vO3U'; // Class covers spreadsheet ID
+const formResponsesTutorAbsencesId = '1ZDm2fRk__AtVUyFBtA5vNZwcZe9SQTge6ESYAc7sl4E';
+const urgentCoversResponseId = '1tZAd-NKu4A71HzVrWkrrxgd41mvw5SbgJmVTQVTE97M'; 
+const tutorAbsencesFormId = '15hFS12SLS1YMOoGEGoAN7O6qARduok28VcfyTDIINmo';
 const classLettersCol = ["E","F","G","H","I","J"]; // Storing which class letters correspond to which columns in tutor sign-in sheet, A = E, etc. 
-
-function declareGlobalVariables() {}
 
 function initializeStatusProperty(){
   // Using Property service to store a property type (key-value pairs like a dict) between executions globally 
@@ -33,5 +23,3 @@ function initializeStatusProperty(){
   console.log("statusProperties :", statusProperties.getProperties());
   return statusProperties;
 }
-
-const statusProperties = initializeStatusProperty();

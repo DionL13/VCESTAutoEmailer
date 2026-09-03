@@ -1,6 +1,8 @@
 function buildTimetableMap() {
   // Function converts a google sheet with the timetable to a map between each block (i.e. "2E"), to a day (i.e. "Wed 15-Jan")
 
+  const ssUrgentCoversResponse = SpreadsheetApp.openById(urgentCoversResponseId);
+
   let programTimetableSheet = ssUrgentCoversResponse.getSheetByName('Program Timetable');
   let programTimetableSheetData = programTimetableSheet.getDataRange().getValues();
 
@@ -35,10 +37,12 @@ function buildTimetableMap() {
   let timetableMapValue = [...timetableMap]; // Converts timetableMap into a nested array of pairs which can be stringified
 
   // Adding map to statusProperties
+  let statusProperties = initializeStatusProperty();
   statusProperties.setProperty("timetableMapKey", JSON.stringify(timetableMapValue)); 
 }
 
 function resetTimetableMap(){
   // Function deletes the map for the current timetable. Used for a timetable update or a new year of program
+  let statusProperties = initializeStatusProperty();
   statusProperties.deleteProperty("timetableMapKey");
 }

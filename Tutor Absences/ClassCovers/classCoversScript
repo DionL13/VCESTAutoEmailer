@@ -1,5 +1,6 @@
 function formSubmissionUpdates(e) {
-  const ss = e.source;; 
+  // Updates the sheet which tracks each individual class to be covered and the associated form from that class.
+  const ss = e.source;
   
   const edited = e.range;
   const sheet = edited.getSheet();
@@ -27,8 +28,5 @@ function formSubmissionUpdates(e) {
     updateForm(sheet, row, choices, noTutorsClasses, checkbox, form, className, block, coveringTutorCode, coveringTutorName);
   }
 
- confirmClassCover(row, sheet);
-
-  // Above this is working
-  
+ confirmClassCover(row, sheet); 
 }

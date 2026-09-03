@@ -1,4 +1,5 @@
 function coveredClassesOnEdit(e){
+
   let edited = e.range;
   let sheet = edited.getSheet();
   let editedRangeName = edited.getA1Notation();
@@ -18,7 +19,16 @@ function coveredClassesOnEdit(e){
   } 
 }
 
-function bccAllUrgentCovers(availableUrgentCoversEmailsString, formLink, sheetName, noTutorsClasses){
+function bccAllUrgentCovers(availableUrgentCoversEmailsString, formLink, sheetName, noTutorsClasses, teamTutorLogical = false){
+
+  // Determining which type of class cover is requiredm (Solo Absence or TT Request)
+  let classCoverType;
+  if (teamTutorLogical === false){
+    classCoverType = "solo";
+  }
+  else if (teamTutorLogical === true){
+    classCoverType = "team";
+  }
 
   // Emailing all available urgent covers
   let className = sheetName.split(" (")[0]; // Removing duplicate index
@@ -35,7 +45,7 @@ function bccAllUrgentCovers(availableUrgentCoversEmailsString, formLink, sheetNa
   let msgHtml = 
   "Hi Tutors, " + 
 
-  "<p> Ops is currently searching for an <b> urgent class cover</b> as a <b>solo tutor</b> for <b>" + className + "</b> in the following blocks: </p>" +
+  "<p> Ops is currently searching for an <b> urgent class cover</b> as a <b>" + classCoverType + " tutor</b> for <b>" + className + "</b> in the following blocks: </p>" +
 
   blocksHtml + 
 
@@ -55,6 +65,8 @@ function contactUrgentCovers(sheet, sheetName, noTutorsClasses) {
 
   let sheetData = sheet.getDataRange().getValues();
   let fColClassCovers = 5;
+
+  const ssUrgentCoversResponse = SpreadsheetApp.openById(urgentCoversResponseId);
 
   let urgentCoversSheet = ssUrgentCoversResponse.getSheetByName('Form Responses');
   let urgentCoversSheetData = urgentCoversSheet.getDataRange().getValues();
@@ -98,6 +110,8 @@ function contactUrgentCovers(sheet, sheetName, noTutorsClasses) {
     }
 
     // Finding the corresponding days to search based on which classes need to be covered
+    let  statusProperties = initializeStatusProperty();
+
     let timetableMapArray = JSON.parse(statusProperties.getProperty("timetableMapKey")); // Returns stringified nested array of key-value pairs, then parses to be a usable nested array
     let timetableMap = new Map(timetableMapArray); // Stores array
     let noTutorsClassNumberWLetter = noTutorsClasses.map(blockWClass => blockWClass.split(" ")[1]); // map() converts to ["1A", "1C"]
@@ -158,10 +172,22 @@ function contactUrgentCovers(sheet, sheetName, noTutorsClasses) {
       let cellFormula = sheet.getRange("F" + contactedTutorsRow).getFormula(); // contactedTutorsRow used as a row index from 1 is the same as contacted tutors location when indexed from 0
       let formLink = cellFormula.split('"')[1]; // Splits at " character, then get the link 
 
-      // Email tutors the link sent to the Ops Data tutors, with all tutors bcc'd
-      bccAllUrgentCovers(availableUrgentCoversEmailsString, formLink, sheetName, noTutorsClasses);
+      // Getting classCoverType from sheet
+      let rowCheck = contactedTutorsRow + 1;
+      let classCoverType = sheet.getRange("G" + rowCheck).getValue().split(":")[1]; // Splits the string at ":" and gets the classCoverType as either "Solo Absence" or "TT Request". +1 as contactedTutors row is the row from 0 indexing not from the sheet itself
 
-      // Adding "Contacted Urgent Covers" nect to "Contacted Covers"
+      let teamTutorLogical;
+      if (classCoverType === "Solo Absence"){
+        teamTutorLogical = false;
+      }
+      else if (classCoverType === "TT Request"){
+        teamTutorLogical = true;
+      }
+
+      // Email tutors the link sent to the Ops Data tutors, with all tutors bcc'd
+      bccAllUrgentCovers(availableUrgentCoversEmailsString, formLink, sheetName, noTutorsClasses, teamTutorLogical);
+
+      // Adding "Contacted Urgent Covers" next to "Contacted Covers"
       let stringRow = contactedTutorsRow + 1;
       sheet.getRange("H" + stringRow).setValue("Contacted Urgent Covers").setBackground('#0073e6').setFontColor('white');
       sheet.getRange("H" + stringRow + ":I" + stringRow).setBackground('#0073e6').setFontColor('white');
@@ -216,4 +242,66 @@ function notifyOpsNoAvailableUrgentCoversFound(sheetName){
 
   let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // removes html formatting to be parsed by javascript email function
   MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text
+}
+
+function manualClassCoversChanges(e){
+  // Function allows for manual adding and deleting from statusProperties via the Daily Status tab
+
+  let edited = e.range;
+  let sheet = edited.getSheet();
+  let column = edited.getColumn();
+  let editedA1Notation = edited.getA1Notation();
+
+  const ssFormResponses = SpreadsheetApp.openById(formResponsesSheetId); // Class covers spreadsheet
+
+  let statusSheet = ssFormResponses.getSheetByName("Daily Status"); 
+  let statusProperties = initializeStatusProperty();
+
+  if (sheet.getName() !== "Daily Status"){ // Skippping edits to other tabs
+    return;
+  }
+  else if (sheet.getName() === "Daily Status"){
+    if (column === 1){ // If added/removed from "New" (getColumn() is indexed from 1)
+      let newClassesArray = JSON.parse(statusProperties.getProperty("newClassesKey"));
+
+      if (statusSheet.getRange(editedA1Notation).getValue() === ""){ // If the edited cell is left blank (i.e. contents have been removed), remove it from statusProperty
+        let oldValue = e.oldValue;
+        let oldIndex = newClassesArray.indexOf(oldValue);
+        newClassesArray.splice(oldIndex,1); // Removing element from array
+      }
+      else if (statusSheet.getRange(editedA1Notation).getValue() !== ""){ // If not left blank (i.e. deleted in the edit), add it to statusProperties
+        newClassesArray.push(statusSheet.getRange(editedA1Notation).getValue());
+      }
+
+      statusProperties.setProperty("newClassesKey", JSON.stringify(newClassesArray)); // Updating statusProperties
+    }
+    else if (column === 2){
+      let ongoingClassesArray = JSON.parse(statusProperties.getProperty("ongoingClassesKey"));
+
+      if (statusSheet.getRange(editedA1Notation).getValue() === ""){ 
+        let oldValue = e.oldValue;
+        let oldIndex = ongoingClassesArray.indexOf(oldValue);
+        ongoingClassesArray.splice(oldIndex,1); 
+      }
+      else if (statusSheet.getRange(editedA1Notation).getValue() !== ""){ 
+        ongoingClassesArray.push(statusSheet.getRange(editedA1Notation).getValue());
+      }
+
+      statusProperties.setProperty("ongoingClassesKey", JSON.stringify(ongoingClassesArray));
+    }
+    else if (column === 3){
+      let coveredClassesArray = JSON.parse(statusProperties.getProperty("coveredClassesKey"));
+
+      if (statusSheet.getRange(editedA1Notation).getValue() === ""){ 
+        let oldValue = e.oldValue;
+        let oldIndex = coveredClassesArray.indexOf(oldValue);
+        coveredClassesArray.splice(oldIndex,1);
+      }
+      else if (statusSheet.getRange(editedA1Notation).getValue() !== ""){ 
+        coveredClassesArray.push(statusSheet.getRange(editedA1Notation).getValue());
+      }
+
+      statusProperties.setProperty("coveredClassesKey", JSON.stringify(coveredClassesArray));
+    }
+  }
 }

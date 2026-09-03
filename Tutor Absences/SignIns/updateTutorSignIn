@@ -1,6 +1,9 @@
-function updateTutorSignIn(e) {
-  // Function takes tutor code and subject and searches the tutor sign in sheet for matches in both columns. Once this occurs, inputs absences in the associated columns. 
+ function updateTutorSignIn(e) {
+  // Function triggers on a tutor absence form submission to takes tutor code and subject and searches the tutor sign in sheet for matches in both columns. Once this occurs, inputs absences in the associated columns. 
   
+  const ssFormResponses = SpreadsheetApp.openById(formResponsesSheetId); // Class covers spreadsheet
+  const ssFormResponsesTutorAbsences = SpreadsheetApp.openById(formResponsesTutorAbsencesId);
+
   let tutorAbsencesData = ssFormResponsesTutorAbsences.getDataRange().getValues(); // Accessing data once, excluding questions row
 
   let tutorCodeColForm = colLettertoColNumber("B"); // Column where tutor codes are found in the form responses sheet
@@ -21,41 +24,36 @@ function updateTutorSignIn(e) {
   let absClassCol = ""; // Column to be updated which converts class letters to their associated columns in the tutor sign-in sheets
   let opsResponseCol = "L"
 
+  const ssSignIn = SpreadsheetApp.openById(signInSSId);
+  const ssTutor = SpreadsheetApp.openById(ssTutorId); // Opening Ops tutor data spreadsheet
+
   // Tutor Data Columns
   let ssTutorData = ssTutor.getSheets()[0].getDataRange().getValues();
-  let class1Col = colLettertoColNumber("J"); // Column of class 1 in Ops tutor data
-  let class2Col = colLettertoColNumber("N"); 
-  let block1Col = colLettertoColNumber("K");
-  let block2Col = colLettertoColNumber("O");
 
   // Sheet-specific variables
   let block;
   let blockSheet;
   let blockSheetData;
   let noTutorsClasses = []; // Array to store which classes have no tutor
-
-  let potentialCovers = []; // Initialising list of potential covers as an array of pairs containing tutors' names and emails for those who could tutor the subject
-  let potentialCoversCodes = []; // Potential covers code list to be added to each class sheet in Class Covers (Responses)
-  let firstNameTutorCol = colLettertoColNumber("E"); 
-  let tutorEmailCol = colLettertoColNumber("H");
-  let tutorCodeColTutorData = colLettertoColNumber("A");
   
   // Edited cells (either due to form submission or direct edits)
   let edited = e.range; // gets range of edited cells from form submission
   let row = edited.getRow() - 1; // -1 to match row index of data array
 
-  // Team tutor variables
-  let teamTutorLogical; // Variable to be updated based on form submission
-
   // Getting subject name for when Other is not selected (i.e. Other column is blank)
   if (tutorAbsencesData[row][subjectNameCol] !==  "" && tutorAbsencesData[row][subjectNameCol] !== "Other"){
     subjectName = tutorAbsencesData[row][subjectNameCol];
   } 
-  else if (tutorAbsencesData[row][otherCol] != ""){ // If Other is selected, a different class will be typed out manually
+  else if (tutorAbsencesData[row][otherCol] !== ""){ // If Other is selected, a different class will be typed out manually
     notifyOpsOrange();
   }
+
+  // CODE ENABLED/DISABLED form submissions have subject as "Other" with no subject actually listed
+  if (tutorAbsencesData[row][subjectNameCol] === "Other" && tutorAbsencesData[row][otherCol] === ""){
+    return;
+  }
   
-  if (subjectName != ""){
+  if (subjectName !== ""){
     let absentClassesString;
     let absentClasses;
     absentClassesString = tutorAbsencesData[row][classCol]; // String of class absences, e.g "A, C" has length 4. 
@@ -73,95 +71,34 @@ function updateTutorSignIn(e) {
 
       if (blockSheetData[rowIdx][tutorCodeColSignIn] == tutorCode && blockSheetData[rowIdx][classNameCol].slice(0,-2) == subjectName){ // Class for tutor code is found in block and subject name matches class name (without " x" where x is the class number). Can only occur once as tutors can only teach one class per block
 
-        teamTutorCodes = Array.from({length:absentClasses.length}, () => []); // Initialising team tutor codes as a list of lists with absentClasses length number of empty lists. first argument of Array.from() defines an array of length 5 with undefined in every element, second argument is an arrow function applied to each element taking in no arguments and setting each element to []. e.g. if absentClasses = ["A","C","D"], then teamTutorCodes = [[],[],[]] since absentClasses has length 3
-        
         // Searching for a team tutor, if any are found that are available to tutor, store their code for each unavailability in teamTutorCodes
         className = blockSheetData[rowIdx][classNameCol]; 
-        // Setting absences for tutor for each class letter in absentClasses array. Sets this before searching anything because an ABS is approved and resolved, so works with the current status of tutors which is approved. Updates this later after search.
-        
-        for (let classIdx = 0; classIdx < absentClasses.length; classIdx += 1){ 
-          
-          absClassCol = convertClassLetterToColumn(absentClasses, classIdx);
-          blockSheetData[rowIdx][absClassCol] = "ABS"; // Updating data sheet 
 
-          for (let rowTT = 6; rowTT < numRows; rowTT += 1){ // Searching all rows for a second tutor teaching the same class
-            
-            if (blockSheetData[rowTT][classNameCol] == className && (blockSheetData[rowTT][absClassCol] == "" || blockSheetData[rowTT][absClassCol] == "⠀")){ // If a team tutor exists and isn't absent for this class
-              teamTutorCodes[classIdx].push(blockSheetData[rowTT][tutorCodeColSignIn]); // Adds team tutor code to corresponding lists, classIdx indexes nested list, 0 indexes first element of this list
-            }
-          }
-        }
+        // Finding team tutor codes for the class and updating blockSheetData values
+        [teamTutorCodes, blockSheetData] = findTeamTutorCodes(absentClasses, blockSheet, blockSheetData, rowIdx, className);
 
         let numTeamTutorsArray = Array.from(teamTutorCodes, (codes) => codes.length); // Maps each element of teamTutorCodes to the number of tutors available for that class 
 
-        if (numTeamTutorsArray.some((numTutors) => numTutors == 1)){ // Maps number of tutors to an array where every element is checked to see if the element is greater than 0. This only occurs when there is at least 1 tutor available to tutor every class (Notify TT check)
+        if (numTeamTutorsArray.some((numTutors) => numTutors == 1)){ // Maps number of tutors to an array where every element is checked to see if the element is equal to 1. Returns a true value if at least 1 tutor is available to tutor every class (Notify TT check)
 
-          // Storing the available tutors' codes in a set then returning an ordered list from the set to see unique codes 
-          uniqueTutorCodes = uniqueTutors(teamTutorCodes);
+          // Notifying team tutors and updating blockSheetData
+          blockSheetData = emailTTofAbsence(teamTutorCodes, absentClasses, blockSheetData,subjectName, block, ssTutorData, rowIdx);
 
-          // Searching by tutor code in teamTutorCodes to find which classes have which team tutors available. Each element of this nested array corresponds to a single team tutor, and each element of the nested array contains which classes said tutor is available for
-          classesForEachTT = getClassesForEachTT(uniqueTutorCodes, teamTutorCodes, absentClasses); // Returns nested array where each inner array corresponds to the classes for each TT.
-
-          // Emailing team tutor if names available has non-empty elements
-          for (let i = 0; i < classesForEachTT.length; i += 1){
-            if (classesForEachTT[i].length > 0 ){ // If there is at least 1 class where a tutor that takes the subject is the only tutor who can teach on the day, email them to make them aware
-              notifyTeamTutorAbsence(uniqueTutorCodes[i],classesForEachTT[i], subjectName, block, ssTutorData);
-              
-              // Set tutor who submitted the absence to ABS - TT Notified for the class where the TT has been notified after email has been sent
-              for (let classIdx = 0; classIdx < classesForEachTT[i].length; classIdx += 1){
-                absClassCol = convertClassLetterToColumn(classesForEachTT[i], classIdx);
-                blockSheetData[rowIdx][absClassCol] = "ABS - TT Notified"; // Updating data sheet
-              }
-            }
-          } 
         }
         if (numTeamTutorsArray.some((numTutors) => numTutors == 0)){ // Triggers if there is at least 1 class absence where no tutors are available
-
-          // Finding the classes which have no tutor
-          let emptyIndices = [];
-          for (let i = 0; i < numTeamTutorsArray.length; i += 1){
-            if (numTeamTutorsArray[i] == 0){
-              emptyIndices.push(i);
-              noTutorsClasses.push(absentClasses[i]);
-            }
-          }
           
-          let noTutorsHtml = "<ul>"; // Initialising string to update as list of classes needing a cover
+          let noTutorsHtml; 
 
-          // Setting class to ABS !! For each class where no tutors are available
-          for (let i = 0; i < emptyIndices.length; i += 1){
-            let idx = emptyIndices[i];
-            absClassCol = convertClassLetterToColumn(absentClasses, idx); // Indices match that of the absent class array
-            blockSheetData[rowIdx][absClassCol] = "ABS !!";
+          // Finding a list of tutors who can cover the class(es)
+          [potentialCovers, potentialCoversCodes, noTutorsHtml, noTutorsClasses, emptyIndices, blockSheetData] = findPotentialCovers(numTeamTutorsArray,noTutorsClasses,absentClasses,blockSheetData,block,subjectName,rowIdx,ssTutorData);
 
-            // Adding to noTutor list to send to covers
-            noTutorsHtml += "<li>" + block + absentClasses[idx] + "</li>"; 
-          }
-          noTutorsHtml += "</ul>"; // Closing list html text
-
-          // Searching tutor spread sheet for the subject needing to be covered
-          for (let i = 1; i < ssTutorData.length; i += 1){ // Seaching with i representing the row index, info begins row 2 sheets rows, so index 1 in data arrays
-
-            if (subjectName == ssTutorData[i][class1Col].slice(0,-2) || 
-            subjectName == ssTutorData[i][class2Col].slice(0,-2)){
-              if (ssTutorData[i][block1Col] != block && ssTutorData[i][block2Col] != block){// If thes subject name matches either of a tutor's classes (slice to remove class name specifics), and neither of the tutor's classes are in the block that needs to be covered, add them to the list of potential covers. 
-
-                potentialCovers.push([]); // Creates a new nested array for the tutor
-
-                potentialCovers.at(-1).push(ssTutorData[i][firstNameTutorCol]); // Appending tutor first name to last made nested array
-                potentialCovers.at(-1).push(ssTutorData[i][tutorEmailCol]);
-                
-                potentialCoversCodes.push(ssTutorData[i][tutorCodeColTutorData]); // Appends tutor code
-              }
-              else continue; // If the either block is the same, skip to next step
-            }
-          }
-
+          // Creating a form link for the tutors to respond to
           let [formLink, sheetName] = createFormForClassCover(className, block, noTutorsClasses, potentialCoversCodes, tutorCode); // Updates Daily Status and creates form link regardless of whether potential covers are found
-
+          
           if (potentialCovers.length > 0){
-            // email all tutors in first batch from Ops Data (an ABS !! has occured)
-            emailPotentialCovers(potentialCovers, className, block, noTutorsHtml, noTutorsClasses, potentialCoversCodes, tutorCode, formLink);
+
+            // Email all tutors in first batch from Ops Data (an ABS !! has occured)
+            emailPotentialCovers(potentialCovers, className, noTutorsHtml, formLink);
 
             // Setting class to Covers Contacted for each class where covers have been contacted
             for (let i = 0; i < emptyIndices.length; i += 1){
@@ -173,7 +110,7 @@ function updateTutorSignIn(e) {
           else if (potentialCovers.length == 0){
             notifyOpsNoPotentialCoversFound(className, block);
 
-            // Contacting Urgent Covers immediately if no potential covers are found in the Ops Data
+            // Contacting Urgent Covers immediately if no potential covers are found in the Ops Data 
             let classSheet = ssFormResponses.getSheetByName(sheetName);
             classSheet.getRange("I1").setValue("TRUE");
             let noTutorsClassesBlockWLetter = noTutorsClasses.map(letter => block + letter); // Converts ['A','C'] to ['Block 1A', 'Block 1C']
@@ -200,35 +137,39 @@ function updateTutorSignIn(e) {
     }
   } 
 
+  console.log("no problems here yet");
+  console.log("blockSheet: ", blockSheet);
+  console.log("blockSheetData: ", blockSheetData);
+
   // Updating sheet after all searches have been performed
   blockSheet.getDataRange().setValues(blockSheetData);
-}
 
-// Above this is working, below needs fixing
+}
 
 /*
 Current plan:
-  
-  Fully-automated Section:
+
 
   User Section: custom onEdit functions for tutor sign-in sheet, Daily Status sheet and class sheets
-
-  - Add a check in the manual edits section to check if the edit has "ABS - Find Cover". If this is true, have the second (hidden section) of the google form set to "Yes". Then change updateTutorSignIn() to check the corresponding column in the form responses sheet and send team tutor emails instead of solo emails if the form submission displays "Yes" in whichever columns. 
-
-  - Update Daily Status sheet statusProperties variable using an onEdit function if manually added or removed
-  - If manually changed to ABS - Find Cover, Ops to send an email to find class covers as a team tutor due to request (Using custom menus in sheets!!)
-
-  - Add way to check and fix statusProperties to what is currently in Daily status (likely best fix is checkbox off to the side)
+  
+  - For manual Ops absences, after the submit absences button is pressed from the dropdown, add a UI screen listing the class name, team tutors and block. Then list all tutors which will be contacted as potential covers below this. Add an "ARE YOU SURE" (5)
+  - Add way to check and fix statusProperties to what is currently in Daily status (likely best fix is checkbox off to the side). Likely a reset button to stop updating, fix everything and then reallocate everything. (2)
+  - Need to fix statusProperties updates as code doesn't run fast enough to account for multiple classes being removed sequentially. Add a way to remove multiple classes at once. (1)
+  - Add a spinner to indicate that the code is running for longer runs such as manual edits and contacting urgent covers (4)
 
 
   Phase 4: 
   - Include a time limit for if the update tutor sign in takes longer than a minute to run that Ops is notified of the tutor who submitted the absence, for which class and which blocks so that if a time-out error is sent to the Ops email, Ops knows what caused it and how to fix it. Use the form submission details to include in the email. Potentially add a logical variable for each form submission as to whether it has been actioned and if it hasn't been actioned, mark it red in the forms submission page and email Ops that a form submission in the corresponding sheet has not been correctly actioned by the code and what to do. 
-  - Add a section to figure out what went wrong if an apps script error gets sent to the Ops email (likely adding a try catch block at each key point and running a console log if an error is thrown)
+  - Add a section to figure out what went wrong if an apps script error gets sent to the Ops email (likely adding a try catch block at each key point and running a console log if an error is thrown, or having each key point visible somewhere in the UI)
 
   Phase 5:
   - Find a way to update the code for ongoing years, i.e. update the columns if they change, or update the timetable and google forms (i.e. update timetable property). Likely by storing variables in statusProperties and then creating a map as a global variable from that.
+  - Add sidebar to run a script for venue changes to email tutors:
 
-  - Add sidebar to run a script for venue changes to email tutors
+  Venue changes ideas:
+  - Detect changes in the venue column, and if a venue changes, find team tutors of the class and have a pop-up to ask if the code should change these venues too and a list of which tutors to notify. 
+
+
   - Use HTML dialogue boxes for pop-up messages
 
 

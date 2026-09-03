@@ -1,0 +1,279 @@
+function onOpenMenu(){
+// Function creates a custom menu when the sheet is opened and displays it. This menu is to give the option to run the killSwitch code
+
+  // Checking that the trigger exists and is currently active so as to not produce an error in removing a trigger that can't be found
+  let spreadSheet = SpreadsheetApp.getActiveSpreadsheet();
+  let triggers = ScriptApp.getProjectTriggers(); // Since this only gets USER triggers, and the script is owned by the Operations gmail account, no one other than those operating under the Ops email will be able to use this feature. Returns an array of triggers
+
+  triggers.forEach((trigger) => console.log(trigger.getHandlerFunction()));
+
+  // Creating the custom menu depending on whether the script is enabled or not
+  let ui = SpreadsheetApp.getUi();
+  let menu = ui.createMenu('Manage System');
+
+  // Adding custom menu options
+  if (triggers.length > 1){ // If there is only 1 trigger, it's the onOpen() trigger to create the custom menu
+    menu.addItem('Disable ALL Automated Tutor Absences Systems', 'killSwitch'); // Creates a menu item called Disable Automated Emails, which runs the killSwitch function when clicked
+  }
+  else if (triggers.length === 1){
+    menu.addItem('Enable ALL Automated Tutor Absences Systems', 'reviveSwitch'); // Re-enables automated emails, running a function called reviveSwitch
+  }
+
+  menu.addToUi();
+}
+
+
+
+// BELOW CURRENTLY NOT WORKING: NOT REMOVING (OR FINDING?) ALL TRIGGERS EXCEPT onOpen()
+
+function killSwitch() {
+  // Function disbales all automated system components, only leaving the onOpen() trigger which produces a custom menu to enable/disbale the code. The kill switch submits a form into the Tutor Absences form with only the text "CODE DISABLED" in the first column, causing the row to go red with conditional formatting. Another sheet has a range imported starting from the next row after the CODE DISABLED row, using =MATCH("CODE DISABLED") which finds the largest index where a match occurs within the first column. The largest index is important since if the code is enabled then disabled again, the range that is imported is only to be from the most recent instance of disabling.
+  
+
+  let ui = SpreadsheetApp.getUi();
+  let correctAnswer = "o0Psh3lpdEsk";
+
+  const ssFormResponsesTutorAbsences = SpreadsheetApp.openById(formResponsesTutorAbsencesId);
+
+  // Checking that the trigger exists and is currently active so as to not produce an error in removing a trigger that can't be found
+  let triggers = ScriptApp.getProjectTriggers();
+  if (triggers.length === 0){ 
+    ui.alert('You do not have authorisation to disable this system. Please contact a member of the Operations team so that they can disable the system.');
+  }
+  else if (triggers.length === 1){ // If there's only 1 trigger, it's the onOpen() trigger. This is a failsafe
+    ui.alert('Automated Emails are already disabled.');
+  }
+  else if (triggers.length > 1){ // If there is more than 1 trigger, the script is active
+    let passwordAttempt = ui.prompt('Input Operations Gmail Password Below').getResponseText();
+    
+    if (passwordAttempt !== correctAnswer){
+      ui.alert('Password Incorrect.');
+    }
+    else if (passwordAttempt === correctAnswer){
+      // Are you sure? section
+      let response = ui.alert('Password Correct. Are you sure you want to disable ALL automated tutor absences systems?', ui.ButtonSet.YES_NO);
+
+      // If OK is selected, delete all triggers except the onOpen() trigger
+      if (response === ui.Button.YES){
+
+        // Finding the indices of the triggers to remove
+        let triggerNames = triggers.map(trigger => trigger.getHandlerFunction()); // Maps every trigger to the name (a string) of the function it calls
+        let lastStandingTriggerIndex = triggerNames.indexOf("onOpenMenu"); // Index of the onOpenMenu() function, the only trigger to not remove
+
+        // Removing all other triggers except onOpen()
+        for (let i = 0; i < triggers.length; i++){
+          if (i === lastStandingTriggerIndex){
+            continue;
+          }
+          else if (i !== lastStandingTriggerIndex){
+            ScriptApp.deleteTrigger(triggers[i]);
+          }
+        }
+
+        // Submitting a form with "CODE DISABLED" as the tutor code to indicate a break point for the 'Manual Absences Tracker' sheet in the Tutor Absences (Responses) spreadsheet
+
+        // Submitting form for absence with pre-filled details
+        let tutorAbsencesForm = FormApp.openById(tutorAbsencesFormId);
+
+        let formResponse = tutorAbsencesForm.createResponse(); // tutorAbsencesForm is a global variable
+        let formItemsArray = tutorAbsencesForm.getItems(); // Returns an array of all form items
+        let response = "";
+
+        // Prefilling form questions one at a time
+        for (let i = 0; i < formItemsArray.length; i++){
+
+          let item = formItemsArray[i];
+
+          // Getting the item type to use createResponse on the specific class
+          switch (i){
+            case 0:
+              item = item.asTextItem();
+              response = item.createResponse("CODE DISABLED");
+              formResponse.withItemResponse(response);
+              break; // Switch runs each case after (and including) the first match until a break is found
+            case 1:
+              item = item.asListItem();
+              response = item.createResponse("Other"); // Placeholder, question requires a response
+              formResponse.withItemResponse(response);
+              break;
+            case 2:
+              break; // Skipping the class name corresponding with other
+            case 3:
+              item = item.asMultipleChoiceItem();
+              response = item.createResponse("Block 1"); // Placeholder, question requires a response
+              formResponse.withItemResponse(response);
+              break;
+            case 4:
+              item = item.asCheckboxItem();
+              response = item.createResponse(["A"]); // Placeholder, question requires a response
+              formResponse.withItemResponse(response);
+              break;
+          }
+        }
+
+        // Submitting the form response
+        formResponse.submit();
+
+        // Confirming the system has been disabled to the user
+        ui.alert("Automed Emails Disabled.");
+
+        // Emailing Ops to confirm that the system has been disabled
+        let address = opsEmail; 
+        let subject = "Automated Tutor Absences have been DISABLED"; 
+        let msgHtml = 
+        "<p> Hi Ops, </p>" +
+
+        "<p>This email is to inform you that the <b>Automated Tutor Absences System </b> has been <b>DISABLED</b>.</p>" + 
+
+        "<p> This means that all future tutor absences will <b>NOT</b> automatically be inputted and actioned and that Ops will <b>no longer get updates</b> about classes yet to be covered/absences requiring manual input. Until the system has been switched back on, tutor absences are to be inputted manually by <b>BCCing potential tutors</b> in an email containing the <b>time, block and class</b> being covered. See sent emails or the Roles sheet for a template.</p>" + 
+
+        "<p>The Daily Status section of the code is also <b>not functional</b>. Do <b>NOT</b> try to find/track tutor absences using this system as this code will not run either. Please continue to track the Tutor Sign In sheet manually, however no code will run based on your actions.</p>" +
+
+        "<p>This is an automated email, do not reply. <b>PLEASE NOTIFY THE OPS TEAM IF YOU ARE READING THIS EMAIL</b>. If you have any questions please consult your Ops Coords. </p>" +
+
+        "<p>Kind Regards, </p>"
+        ; // Formatted in HTML to allow for bold text, <p> opens new paragraph, </p> closes paragraph
+
+        let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+        MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text
+      }
+      else if (response === ui.Button.NO){ // Exiting function call if they do not wish to continue
+        return;
+      }
+    }
+  } 
+
+}
+
+// BELOW NOT YET TESTED
+
+function reviveSwitch(){
+  
+  let triggers = ScriptApp.getProjectTriggers(); // Getting triggers so that enabling can't occur when code is already active
+
+  triggers.forEach((trigger) => console.log(trigger.getHandlerFunction()));
+
+  let ui = SpreadsheetApp.getUi();
+  let correctAnswer = "o0Psh3lpdEsk";
+
+  if (triggers.length === 0){
+    ui.alert('You do not have authorisation to enable this system. Please contact a member of the Operations team so that they can disable the system.');
+  }
+  else if (triggers.length === 1){ // If there is only 1 trigger, it's the onOpen() trigger and so the code can be enabled
+    let passwordAttempt = ui.prompt('Input Operations Gmail Password Below').getResponseText();
+    if (passwordAttempt === correctAnswer){
+
+      // Are you sure? section
+      let response = ui.alert('Password Correct. Are you sure you want to enable automated tutor absence management emails?', ui.ButtonSet.YES_NO);
+
+      if (response === ui.Button.YES){
+
+        let spreadSheet = SpreadsheetApp.getActiveSpreadsheet();
+
+        // Creating onEditCoveredClasses() trigger
+        createOnEditCoveredClassesTrigger();
+        console.log("onEditCoveredClasses revived");
+
+        // Creating updateDailyStatus() trigger
+        createUpdateDailyStatusTrigger();
+        console.log("updateDailyStatus revived");
+
+        // Creating notfiyOpsStatus() trigger
+        createNotifyOpsStatusTrigger();
+        console.log("notifyOpsStatus revived");
+
+        // Creating tutorSignInOnEdit() trigger
+        createOnEditTutorSignInTrigger();
+        console.log("tutorSignInOnEdit revived");
+
+        // Creating manualClassCoversChanges trigger
+        createManualClassCoverChangesTrigger();
+        console.log("manualClassCoverChanges revived");
+
+        // Creating updateTutorSignIn() trigger
+        createUpdateTutorSignInTrigger();
+        console.log("updateTutorSignIn revived");
+
+        // Creating formSubmissionUpdates() trigger
+        createFormSubmissionUpdatesTrigger();
+        console.log("formSubmissionUpdates revived");
+
+        // Confirming for the user that the system has been enabled
+        ui.alert('Automated Emails Enabled');
+
+        // Emailing Ops to tell them that the automated emails have been enabled
+        let address = opsEmail; 
+        let subject = "Automated Tutor Absences have been ENABLED"; 
+        let msgHtml = 
+        "<p> Hi Ops, </p>" +
+
+        "<p>This email is to inform you that the <b>Automated Tutor Absences System </b> has been <b>ENABLED</b>.</p>" + 
+
+        "<p> This means that all future valid tutor absences will be <b>automatically</b> inputted and actioned and that Ops will get updates about absences requiring attention. Please speak to the Ops Coords if you are unfamiliar with how to use the system.</p>" + 
+
+        "<p> <b>For Ops Coords</b>: When the system is enabled, Ops will only be notified of errors in the code daily(code running incorrectly, NOT user errors). To change this, go into the Tutor Absences (Responses) sheet, go to the 'Extensions' tab, press 'Apps Script'. This will open a new tab. Go to the Alarm Clock icon on the left side of the screen, where it says 'Triggers'. Hover over the functions (not the onOpen) and press the pencil. On the right hand side, a drop down will be there for failure notification settings. Click the dropdown, select 'Notify me immediately' and 'Save' in the bottom right. This is not super important however it's better to know something went wrong immediately than at the end of the day.</p>" + 
+
+        "<p><b>PLEASE NOTIFY THE OPS TEAM IF YOU ARE READING THIS EMAIL</b>. If you have any questions please consult your Ops Coords. This is an automated email, do not reply.</p>" +
+
+        "<p>Kind Regards, </p>"
+        ; // Formatted in HTML to allow for bold text, <p> opens new paragraph, </p> closes paragraph
+
+        let msgPlain = msgHtml.replace(/(<([^>]+)>)/ig, ""); // replaces special characters in HTML with "" (nothing) in the body of the text
+        MailApp.sendEmail(address, subject, msgPlain, {htmlBody: msgHtml}); // htmlBody formats body as an html text
+
+        // Submitting a form with CODE ENABLED to the tutor absences sheet
+
+        // Submitting form for absence with pre-filled details
+        let tutorAbsencesForm = FormApp.openById(tutorAbsencesFormId);
+
+        let formResponse = tutorAbsencesForm.createResponse(); // tutorAbsencesForm is a global variable
+        let formItemsArray = tutorAbsencesForm.getItems(); // Returns an array of all form items
+        let response = "";
+
+        // Prefilling form questions one at a time
+        for (let i = 0; i < formItemsArray.length; i++){
+
+          let item = formItemsArray[i];
+
+          // Getting the item type to use createResponse on the specific class
+          switch (i){
+            case 0:
+              item = item.asTextItem();
+              response = item.createResponse("CODE ENABLED");
+              formResponse.withItemResponse(response);
+              break; // Switch runs each case after (and including) the first match until a break is found
+            case 1:
+              item = item.asListItem();
+              response = item.createResponse("Other"); // Placeholder, question requires a response
+              formResponse.withItemResponse(response);
+              break;
+            case 2:
+              break; // Skipping the class name corresponding with other
+            case 3:
+              item = item.asMultipleChoiceItem();
+              response = item.createResponse("Block 1"); // Placeholder, question requires a response
+              formResponse.withItemResponse(response);
+              break;
+            case 4:
+              item = item.asCheckboxItem();
+              response = item.createResponse(["A"]); // Placeholder, question requires a response
+              formResponse.withItemResponse(response);
+              break;
+          }
+        }
+
+        // Submitting the form response
+        formResponse.submit();
+
+        triggers.forEach((trigger) => console.log(trigger.getHandlerFunction())); // Displaying which triggers now exist
+
+      }
+      else if (response === ui.Button.NO){ // Exiting function call if they do not wish to continue
+        return;
+      }
+    }
+  }
+  else if (triggers.length > 1){
+    ui.alert('Automated Emails are already enabled.');
+  }
+}

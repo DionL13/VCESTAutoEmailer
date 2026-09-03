@@ -1,6 +1,8 @@
 function updateForm(sheet, row, choices, noTutorsClasses, checkbox, form, sheetName, block, coveringTutorCode, coveringTutorName) {
   // Updates choices to remove already covered classes
 
+  const ssSignIn = SpreadsheetApp.openById(signInSSId);
+
   let sheetData = sheet.getDataRange().getValues(); // Each element is a row of the class being covered's sheet, indexed from 0
   let signInClassCol = 0; // Classes in sign in sheet are in the first column, i.e. 0 when indexed from 0.
   const tutorCodeColSignIn = 2; // Indexed from 0 
@@ -106,6 +108,8 @@ function updateForm(sheet, row, choices, noTutorsClasses, checkbox, form, sheetN
     sheet.setTabColor('#00ff00'); // Sets colour to green
 
     // Putting class name in Covered section of array for Daily Status
+    let statusProperties = initializeStatusProperty();
+
     let coveredClassesValueString = statusProperties.getProperty('coveredClassesKey');
     let coveredClassesValueArray = JSON.parse(coveredClassesValueString);
     coveredClassesValueArray.push(sheetName + " - " + block);
@@ -114,7 +118,10 @@ function updateForm(sheet, row, choices, noTutorsClasses, checkbox, form, sheetN
     // Updating Daily Status sheet Covered Classes
     let temporaryArrayForSetVals = coveredClassesValueArray.map(element => [element]); // setValues() requires a 2D array of the form of the data, so setting values down a column requires [[A],[B],[C]] not [A,B,C] which would be for elements in the same row
     let endRow = 3 + temporaryArrayForSetVals.length - 1; // Starting from row 3, -1 since when there's only 1 element in "Covered", want endRow = 3
-  
+    
+    const ssFormResponses = SpreadsheetApp.openById(formResponsesSheetId); // Class covers spreadsheet
+    
+    let statusSheet = ssFormResponses.getSheetByName("Daily Status"); 
     statusSheet.getRange("C3:C" + endRow).setValues(temporaryArrayForSetVals);
 
     let newClassesValueArray = JSON.parse(statusProperties.getProperty('newClassesKey'));
@@ -173,6 +180,8 @@ function tutorEmailNotFound(name, tutorCode, classNameString){
 
 function confirmClassCover(row, sheet, teamTutor = false){
   // Function takes in the row for a form submission in the linked google sheet and finds the tutor code, searches the Ops tutor data, then emails them to confirm which classes they are covering
+  
+  const ssTutor = SpreadsheetApp.openById(ssTutorId);
 
   let sheetData = sheet.getDataRange().getValues();
   let formSubmissionData = sheetData[row-1]; // Array composed of elements of the row
@@ -188,7 +197,6 @@ function confirmClassCover(row, sheet, teamTutor = false){
     let tutorEmail = "";
 
     // Finding tutor email
-    let ssTutor = SpreadsheetApp.openById(ssTutorId); // Opening Ops tutor data spreadsheet
     let ssTutorData = ssTutor.getSheets()[0].getDataRange().getValues();
 
     [tutorEmail, _] = findTutorEmail(tutorCode, ssTutorData);
@@ -200,21 +208,13 @@ function confirmClassCover(row, sheet, teamTutor = false){
     }
     htmlClasses += "</ul>";
 
-    let tutorStatus = ""; // Status of tutor (solo or team tutor)
-    if (teamTutor == false){
-      tutorStatus = "solo";
-    }
-    else if (teamTutor == true){
-      tutorStatus = "team";
-    }
-
     if (tutorEmail != ""){ // If a tutor email is found corresponding to the tutorCode
       let address = tutorEmail;
       let subject = className + " Class Cover Confirmation";
       let msgHtml = 
       "Hi " + name + "," +
 
-      "<p> This is an automated email to confirm that you are covering " + className + " as a <b>" + tutorStatus + " tutor</b> in the following blocks: " +
+      "<p> This is an automated email to confirm that you are covering " + className + " in the following blocks: " +
 
       htmlClasses +
 

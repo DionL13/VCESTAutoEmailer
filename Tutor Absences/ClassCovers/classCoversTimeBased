@@ -3,7 +3,11 @@ function updateDailyStatus(){
 
   // notifyOpsStatus(); // Notify Ops of which classes are new for the day and have been covered before updating the system
 
+  const ssFormResponses = SpreadsheetApp.openById(formResponsesSheetId); // Class covers spreadsheet
+
   // Resetting covered classes tab colours back to white
+  let statusProperties = initializeStatusProperty();
+  
   let coveredClassesValueArray = JSON.parse(statusProperties.getProperty('coveredClassesKey')); // Gets string value from properties, then coverts to an array
   for (let sheetName of coveredClassesValueArray){
   // Getting sheet by name of class, resetting colour and hiding covered class sheets. Since all classes in covered classes are green, no need to check the colours.
@@ -22,6 +26,7 @@ function updateDailyStatus(){
   }
   
   // Clearing "New" and "Covered" sections
+  let statusSheet = ssFormResponses.getSheetByName("Daily Status"); 
   statusSheet.getRange("A3:A").clearContent();
   statusSheet.getRange("C3:C").clearContent();
 

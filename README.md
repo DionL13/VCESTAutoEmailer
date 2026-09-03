@@ -5,9 +5,9 @@
     <li>
       1:1 requests and sign ups: automating confirmation emails to both parties if no issues are found within the request, dynamic emails to Ops of unconfirmed sessions
     </li>
-    <li> (In Progress)
+    <li>
       <br>
-      Notifying team tutors of tutor absences and finding a class cover if necessary (or if a team tutor requests a class cover)
+      Notifying team tutors of tutor absences and finding a class cover if necessary (or if a team tutor requests a class cover). Also tracks ongoing, new and covered classes.
       </br>
     </li>
   </ul>
